@@ -141,7 +141,15 @@
 
 //==========----- Handy macros -----==========//
 
-// Branch predictions
+// Manual branch predictions (currently only work with GNUC compiler)
+//
+// Please note that manual branch prediction usually work worse than built-in
+// CPU branch prediction when the branch code has temporal locality and the 
+// distribution of branch occurances are in kind of pattern (i.e. not random).
+//
+// To know more about branch prediction, please refer to:
+// http://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-an-unsorted-array
+
 #if defined(XPF_COMPILER_GNUC)
 #define xpfLikely(x) __builtin_expect((x),1)
 #define xpfUnlikely(x) __builtin_expect((x),0) 
