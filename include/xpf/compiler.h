@@ -91,15 +91,24 @@
 
 //==========----- Library exporting / function visibility macros -----==========//
 
-#if defined(XPF_COMPILER_MSVC)
-#define XPF_EXPORT __declspec(dllexport)
-#define XPF_IMPORT __declspec(dllimport)
-#elif defined(XPF_COMPILER_GNUC)
-#define XPF_EXPORT __attribute__ ((visibility("default")))
-#define XPF_IMPORT
+#if defined(XPF_STATIC_LIBRARY) || defined(XPF_BUILD_STATIC_LIBRARY)
+#  define XPF_API
 #else
-#define XPF_EXPORT
-#define XPF_IMPORT
+#  if defined(XPF_COMPILER_MSVC)
+#    if defined(XPF_BUILD_LIBRARY)
+#      define XPF_API __declspec(dllexport)
+#    else
+#      define XPF_API __declspec(dllimport)
+#    endif
+#  elif defined(XPF_COMPILER_GNUC)
+#    if defined(XPF_BUILD_LIBRARY)
+#      define XPF_API __attribute__ ((visibility("default")))
+#    else
+#      define XPF_API
+#    endif
+#  else
+#    define XPF_API
+#  endif
 #endif
 
 #if defined(XPF_COMPILER_CXX)

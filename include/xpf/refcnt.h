@@ -25,7 +25,6 @@
 #define _XPF_REFCNT_HEADER_
 
 #include "platform.h"
-#include "compiler.h"
 
 namespace xpf {
 

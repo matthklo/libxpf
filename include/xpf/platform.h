@@ -25,6 +25,7 @@
 #define _XPF_PLATFORM_HEADER_
 
 #include "assert.h"
+#include "compiler.h"
 
 //==========----------==========//
 
@@ -165,8 +166,13 @@ typedef u64                vptr;
 #else
 #  error Can not determine pointer data type due to unknown address-model.
 #endif
-
 }  // end of namespace xpf {
+
+#if defined(XPF_PLATFORM_WINDOWS) && defined(XPF_COMPILER_MSVC)
+#define WCHAR_LEN 2
+#else
+#define WCHAR_LEN 4
+#endif
 
 // Double confirm the width of all types at compile time.
 xpfSAssert(1==(sizeof(xpf::u8)));
@@ -185,6 +191,14 @@ xpfSAssert(4==(sizeof(xpf::vptr)));
 xpfSAssert(8==(sizeof(xpf::vptr)));
 #else
 #  error Can not determine pointer data type due to unknown address-model.
+#endif
+
+#if WCHAR_LEN == 2
+xpfSAssert(2==(sizeof(wchar_t)));
+#elif WCHAR_LEN == 4
+xpfSAssert(4==(sizeof(wchar_t)));
+#else
+#  error Unsupported wchar length.
 #endif
 
 //==========----------==========//

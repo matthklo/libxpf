@@ -211,3 +211,7 @@ pip-log.txt
 .mr.developer.cfg
 
 external/STLport-5.2.1/lib/
+external/STLport-5.2.1/build/lib/Makefile
+external/STLport-5.2.1/build/test/eh/Makefile
+external/STLport-5.2.1/build/test/unit/Makefile
+underhood/
