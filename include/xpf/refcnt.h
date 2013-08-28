@@ -28,6 +28,8 @@
 
 namespace xpf {
 
+	// NOTE: Header-only impl.
+
     /**
      *  A base class for objects whose life-cycle should be controlled by reference counting.
      *  RefCounted-derived objects born with ref count 1. Owners (except the one who new
