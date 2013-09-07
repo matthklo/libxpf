@@ -35,22 +35,79 @@ class XPF_API Thread
 public:
 	static const ThreadID INVALID_THREAD_ID = -1LL;
 
+	enum RunningStatus
+	{
+		TRS_READY = 0,  // Created but not yet started.
+		TRS_RUNNING,    // Started but not yet finished.
+		TRS_FINISHED,   // Finished.
+	};
+
 public:
 	Thread();
 	virtual ~Thread();
 
-	virtual void start();
-	virtual void join();
-	virtual bool joinFor(u32 ms);
-	virtual bool isRunning() const;
-	virtual ThreadID getID() const;
-	virtual u32 getExitCode() const;
+	/* Causes the caller thread to sleep for the given interval of time (given in milliseconds). */
+	static void     sleep(u32 durationMs);
+	/* Causes the calling Thread to yield execution time. */
+	static void     yield();
+	/* Return the caller thread id */
+	static ThreadID getThreadID();
 
-	virtual u32 exec(vptr data);
-	virtual vptr getData() const;
-	virtual void setData(vptr data);
+	/* Every thread is created as suspended until its start() is called from other thread. */
+	void          start();
+
+	/* 
+	 * Block the caller thread and wait for the given interval of time trying to join this thread.
+	 * If timeoutMs is -1L (or 0xFFFFFFFF) then it blocks forever until this thread has finished.
+	 * Return true if this thread has finished and joined, return false on timeout (and this thread is still running).
+	 */
+	bool          join(u32 timeoutMs = -1L);
+
+	/*
+	 * This is the thread body which will be called after this thread 
+	 * has started. User must provide their customized body via overriding.
+	 * userdata can be set via setData().
+	 * The return value will be set to be exit code.
+	 *
+	 * NOTE: One could hint thread to abort current job and leave asap by
+	 *       
+	 */
+	virtual u32   run(u64 userdata) = 0;
+
+	/* Return true if this thread has been started. */
+	RunningStatus getStatus() const;
+
+	/* getter / setter of exit code */
+	void          setExitCode(u32 code);
+	u32           getExitCode() const;
+
+	/* getter / setter of user data */
+	u64           getData() const;
+	void          setData(u64 data);
+
+	/* Get the identifier of this thread */
+	ThreadID      getID() const;
+
+	/* 
+	 * Hint the thread body to abort and return asap.
+	 * The detail reaction depends on the derived impl of run().
+	 */
+	void          requestAbort();
+
+protected:
+	/* 
+	 * Whether an abort request has been issued.
+	 * All derived run() implementation should check
+	 * it as frequent as possible and perform 
+	 * aborting if requested.
+	 */
+	bool          isAborting() const;
 
 private:
+	// Non-copyable
+	Thread(const Thread& that);
+	Thread& operator = (const Thread& that);
+
 	vptr pImpl;
 };
 

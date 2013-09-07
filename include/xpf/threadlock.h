@@ -33,14 +33,19 @@ class XPF_API ThreadLock
 {
 public:
 	ThreadLock();
-	virtual ~ThreadLock();
+	~ThreadLock(); // ThreadLock shall not be derived
 
-	virtual void     lock();
-	virtual bool     tryLock();
-	virtual void     unlock();
-	virtual ThreadID getOwnerThreadID() const;
+	void     lock();
+	bool     tryLock();
+	bool     isLocked() const;
+	void     unlock();
+	ThreadID getOwner() const;
 
 private:
+	// Non-copyable
+	ThreadLock(const ThreadLock& that);
+	ThreadLock& operator = (const ThreadLock& that);
+
 	vptr pImpl;
 };
 

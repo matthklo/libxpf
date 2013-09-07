@@ -31,16 +31,19 @@ namespace xpf {
 class XPF_API ThreadEvent
 {
 public:
-	ThreadEvent();
-	virtual ~ThreadEvent();
+	explicit ThreadEvent(bool set = false);
+	~ThreadEvent(); // ThreadEvent shall not be derived
 
-	virtual void set();
-	virtual void reset();
-	virtual void wait();
-	virtual bool waitFor(int ms);
-	virtual bool isSet() const;
+	void set();
+	void reset();
+	bool wait(u32 timeoutMs = -1L);
+	bool isSet();
 
 private:
+	// Non-copyable
+	ThreadEvent(const ThreadEvent& that);
+	ThreadEvent& operator = (const ThreadEvent& that);
+
 	vptr pImpl;
 };
 
