@@ -49,6 +49,20 @@ private:
 	vptr pImpl;
 };
 
+// Header-only
+class ScopedThreadLock
+{
+public:
+	explicit ScopedThreadLock(ThreadLock * lock) : mLock(lock)  { mLock->lock(); }
+	explicit ScopedThreadLock(ThreadLock & lock) : mLock(&lock) { mLock->lock(); }
+	~ScopedThreadLock() { mLock->unlock(); }
+private:
+	// non-copyable
+	ScopedThreadLock( const ScopedThreadLock& that) { xpfAssert(false); }
+	ScopedThreadLock& operator = ( const ScopedThreadLock& that ) { xpfAssert(false); return *this; }
+	ThreadLock *mLock;
+};
+
 } // end of namespace xpf
 
 #endif // _XPF_THREADLOCK_HEADER_

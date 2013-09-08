@@ -23,7 +23,7 @@
 
 #include <xpf/threadlock.h>
 
-// Currently only 2 threading model are supported: windows, posix.
+// Currently only 2 threading models are supported: windows, posix.
 #ifdef XPF_PLATFORM_WINDOWS
 #include "platform/windows/threadlock_windows.hpp"
 #else

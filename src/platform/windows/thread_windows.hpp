@@ -29,6 +29,7 @@
 #endif
 
 #include <Windows.h>
+#include <process.h>
 
 namespace xpf { namespace details {
 
@@ -39,13 +40,12 @@ public:
 		: mExitCode(0)
 		, mUserData(0)
 		, mID(Thread::INVALID_THREAD_ID)
-		, mEvent(new ThreadEvent(false))
 		, mStatus(Thread::TRS_READY)
 		, mAborting(false)
 		, mHost(host)
 	{
-		DWORD tid;
-		mThreadHandle = ::CreateThread(NULL, 0, XpfThread::exec, this, 0, &tid);
+		u32 tid;
+		mThreadHandle = (HANDLE*) ::_beginthreadex(0, 0, XpfThread::exec, this, CREATE_SUSPENDED, &tid);
 		mID = tid;
 	}
 
@@ -63,14 +63,12 @@ public:
 		default:
 			break;
 		}
-		delete mEvent;
-		mEvent = (ThreadEvent*) 0xfefefefe;
 	}
 
 	inline void start()
 	{
 		mStatus = Thread::TRS_RUNNING;
-		mEvent->set();
+		::ResumeThread(mThreadHandle);
 	}
 
 	inline bool join(u32 timeoutMs /*= -1L*/)
@@ -81,8 +79,11 @@ public:
 		if ((mStatus == Thread::TRS_RUNNING) &&
 			(WAIT_OBJECT_0 == ::WaitForSingleObject(mThreadHandle, timeoutMs)))
 		{
-			::CloseHandle(mThreadHandle);
+			// Do not call _endthreadex() or CloseHandle() on mThreadHandle
+			// since windows guarantee a _endthreadex() will be called after
+			// the thread routine returns.
 			mStatus = Thread::TRS_FINISHED;
+			mThreadHandle = Thread::INVALID_THREAD_ID;
 			return true;
 		}
 		return false;
@@ -144,15 +145,14 @@ public:
 	}
 
 	// ====
-	static DWORD WINAPI exec (LPVOID pParam)
+	static unsigned int WINAPI exec (void * param)
 	{
-		XpfThread *thread = (XpfThread*)pParam;
-		thread->mEvent->wait(); // wait for start()
+		XpfThread *thread = (XpfThread*)param;
 		if (!thread->mAborting)
 		{
 			thread->mExitCode = thread->mHost->run(thread->getData());
 		}
-		return (DWORD) thread->mExitCode;
+		return thread->mExitCode;
 	}
 
 private:
@@ -171,7 +171,6 @@ private:
 	ThreadID                        mID;
 	u32                             mExitCode;
 	u64                             mUserData;
-	ThreadEvent                    *mEvent;
 	Thread                         *mHost;
 	Thread::RunningStatus           mStatus;
 	bool                            mAborting;
