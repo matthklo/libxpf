@@ -114,4 +114,8 @@ build/lib/MinSizeRel
 build/lib/RelWithDebInfo
 build/ipch
 build/Win32
+build/Makefile
+build/bin/*.dylib
+build/bin/*.so
+build/lib/*.a
 

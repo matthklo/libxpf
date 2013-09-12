@@ -27,7 +27,7 @@
 #ifdef XPF_PLATFORM_WINDOWS
 #include "platform/windows/threadevent_windows.hpp"
 #else
-#include "platform/posix/threadevent_event.hpp"
+#include "platform/posix/threadevent_posix.hpp"
 #endif
 
 namespace xpf {

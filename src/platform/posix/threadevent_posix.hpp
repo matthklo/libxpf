@@ -41,7 +41,7 @@ namespace xpf { namespace details {
 			pthread_cond_init(&m_ready, NULL);
 
 			if (set)
-				set();
+				this->set();
 		}
 
 		~XpfThreadEvent()
@@ -50,7 +50,7 @@ namespace xpf { namespace details {
 			pthread_cond_destroy(&m_ready);
 		}
 
-		inline void XpfThreadEvent::set()
+		inline void set()
 		{
 			pthread_mutex_lock(&m_lock);
 			m_set = true;
@@ -58,14 +58,14 @@ namespace xpf { namespace details {
 			pthread_mutex_unlock(&m_lock);
 		}
 
-		inline void XpfThreadEvent::reset()
+		inline void reset()
 		{
 			pthread_mutex_lock(&m_lock);
 			m_set = false;
 			pthread_mutex_unlock(&m_lock);
 		}
 
-		inline bool XpfThreadEvent::wait(u32 timeoutMs /* = -1L */)
+		inline bool wait(u32 timeoutMs /* = -1L */)
 		{
 			if (-1L == timeoutMs)
 			{
@@ -101,7 +101,7 @@ namespace xpf { namespace details {
 			return ret;
 		}
 
-		inline bool XpfThreadEvent::isSet()
+		inline bool isSet()
 		{
 			return m_set;
 		}
