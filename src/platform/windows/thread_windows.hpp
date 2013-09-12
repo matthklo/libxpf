@@ -83,7 +83,7 @@ public:
 			// since windows guarantee a _endthreadex() will be called after
 			// the thread routine returns.
 			mStatus = Thread::TRS_FINISHED;
-			mThreadHandle = Thread::INVALID_THREAD_ID;
+			mThreadHandle = (HANDLE)Thread::INVALID_THREAD_ID;
 			return true;
 		}
 		return false;
