@@ -21,5 +21,5 @@ IF(MSVC)
 ENDIF(MSVC)
 
 ADD_SUBDIRECTORY("./src")
-#ADD_SUBDIRECTORY("./test")
+ADD_SUBDIRECTORY("./tests/threading")
 

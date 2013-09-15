@@ -95,6 +95,7 @@ external/STLport-5.2.1/build/test/unit/Makefile
 underhood/
 build/CMakeFiles/
 build/src/
+build/tests/
 build/ALL_BUILD.*
 build/cmake_install.cmake
 build/CMakeCache.txt
