@@ -25,6 +25,7 @@
 #define _XPF_UTFCONV_HEADER_
 
 #include "platform.h"
+#include "string.h"
 
 namespace xpf
 {
@@ -60,10 +61,73 @@ namespace xpf
 	 *    int count = xpf::utfConv<xpf::c8, wchar_t>(utfString, wString);
 	 *
 	 *****/
-	template< typename SrcType, typename DstType >
+	template < typename SrcType, typename DstType >
 	s32 utfConv( SrcType * srcBuf, DstType * dstBuf, s32 srcCount = -1, s32 dstCount = -1 )
 	{
 		return details::utfConvInner( (void*)srcBuf, (void*)dstBuf, sizeof(SrcType), sizeof(DstType), srcCount, dstCount );
+	}
+
+
+	// Coverter operates on xpf::string level. 
+	// Note that the result string is always associated with the standard heap allocator.
+	template < typename S, typename SAlloc >
+	xpfstring<c8> to_utf8(const xpfstring<S, SAlloc>& src)
+	{
+		xpfstring<c8> result;
+		if (!src.empty())
+		{
+			const u32 blen = src.size()*8 + 1;
+			c8 * buf = new c8[blen];
+			if (utfConv(src.c_str(), buf, src.size(), blen) > 0)
+				result = buf;
+			delete[] buf;
+		}
+		return result;
+	}
+
+	template < typename S, typename SAlloc >
+	xpfstring<u16> to_ucs2(const xpfstring<S, SAlloc>& src)
+	{
+		xpfstring<u16> result;
+		if (!src.empty())
+		{
+			const u32 blen = src.size()*8 + 1;
+			u16 * buf = new u16[blen];
+			if (utfConv(src.c_str(), buf, src.size(), blen) > 0)
+				result = buf;
+			delete[] buf;
+		}
+		return result;
+	}
+
+	template < typename S, typename SAlloc >
+	xpfstring<u32> to_ucs4(const xpfstring<S, SAlloc>& src)
+	{
+		xpfstring<u32> result;
+		if (!src.empty())
+		{
+			const u32 blen = src.size()*8 + 1;
+			u32 * buf = new u32[blen];
+			if (utfConv(src.c_str(), buf, src.size(), blen) > 0)
+				result = buf;
+			delete[] buf;
+		}
+		return result;
+	}
+
+	template < typename S, typename SAlloc >
+	xpfstring<wchar_t> to_wchar(const xpfstring<S, SAlloc>& src)
+	{
+		xpfstring<wchar_t> result;
+		if (!src.empty())
+		{
+			const u32 blen = src.size()*8 + 1;
+			wchar_t * buf = new wchar_t[blen];
+			if (utfConv(src.c_str(), buf, src.size(), blen) > 0)
+				result = buf;
+			delete[] buf;
+		}
+		return result;
 	}
 
 }; // end of namespace xpf
