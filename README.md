@@ -14,6 +14,8 @@ Planned target platforms:
 *	android
 
 Contributions from 3rd-party:
-*	STLPort - http://www.stlport.org/
-	Acf Delegate - http://www.codeproject.com/Articles/11464/Yet-Another-C-style-Delegate-Class-in-Standard-C
+*	STLPort
+	http://www.stlport.org/
+*	Acf Delegate
+	http://www.codeproject.com/Articles/11464/Yet-Another-C-style-Delegate-Class-in-Standard-C
 	
