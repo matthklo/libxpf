@@ -75,16 +75,16 @@ namespace Acf {
 class InvalidCallException : public std::logic_error
 {
 public:
-    InvalidCallException() : std::logic_error("An empty delegate is called")
-    {
-    }
+	InvalidCallException() : std::logic_error("An empty delegate is called")
+	{
+	}
 };
 
 #ifdef __XPF_PATCHED__
 template <class T>
 inline T _HandleInvalidCall()
 {
-    throw InvalidCallException();
+	throw InvalidCallException();
 }
 
 template <>

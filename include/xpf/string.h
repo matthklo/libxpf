@@ -34,6 +34,8 @@
 #pragma warning ( disable : 4996 )
 #endif
 
+// NOTE: Header-only impl.
+
 namespace xpf {
 
 template < typename T, typename TAlloc = std::allocator<T> >

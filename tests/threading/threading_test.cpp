@@ -47,44 +47,44 @@ int main()
 	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
-    ::srand(::time(NULL));
+	::srand(::time(NULL));
 
-    std::vector<Thread*> ta;
+	std::vector<Thread*> ta;
 
-    for (int i=0; i<30; ++i)
-    {
-        ta.push_back(new MyThread);
-        ta.back()->setData((u64)(rand()%30 + 1));
-    }
+	for (int i=0; i<30; ++i)
+	{
+		ta.push_back(new MyThread);
+		ta.back()->setData((u64)(rand()%30 + 1));
+	}
 
-    for (unsigned int i=0; i<ta.size(); ++i)
-    {
+	for (unsigned int i=0; i<ta.size(); ++i)
+	{
 		xpfAssert(ta[i]->getStatus() == Thread::TRS_READY);
-        ta[i]->start();
-    }
+		ta[i]->start();
+	}
 
-    while(ta.size() > 0)
-    {
-        u32 i;
+	while(ta.size() > 0)
+	{
+		u32 i;
 		bool joinedAny = false;
-        for (i=0; i<ta.size(); ++i)
-        {
+		for (i=0; i<ta.size(); ++i)
+		{
 			if (ta[i]->join(0))
-            {
+			{
 				xpfAssert(ta[i]->getStatus() == Thread::TRS_FINISHED);
-                xpfAssert((u32)ta[i]->getID() == ta[i]->getExitCode());
-                delete ta[i];
+				xpfAssert((u32)ta[i]->getID() == ta[i]->getExitCode());
+				delete ta[i];
 				ta[i] = ta[ta.size()-1];
 				ta.pop_back();
 				i--;
 				joinedAny = true;
-                break;
-            }
-        }
+				break;
+			}
+		}
 
 		if (!joinedAny)
-			Thread::sleep(1000);
-    }
+		Thread::sleep(1000);
+	}
 
-    return 0;
+	return 0;
 }
