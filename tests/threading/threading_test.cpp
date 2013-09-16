@@ -22,6 +22,7 @@
  ********************************************************************************/
  
 #include <xpf/thread.h>
+#include <xpf/tls.h>
 
 #ifdef XPF_PLATFORM_WINDOWS
 // http://msdn.microsoft.com/en-us/library/vstudio/x98tx3cf.aspx
@@ -36,6 +37,8 @@
 #include <time.h>
 
 using namespace xpf;
+
+ThreadLocalStorage<u64> _g_tls;
 
 class MyThread : public Thread
 {
@@ -55,6 +58,7 @@ public:
 		{
 			printf("Thread [%llu]: Remaining %llu seconds. \n", tid, sec);
 			Thread::sleep(1000);
+			_g_tls.put(userdata, true);
 		}
 
 		return (u32)tid;
@@ -70,7 +74,7 @@ int main()
 	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
-	::srand(::time(NULL));
+	::srand((unsigned int)::time(NULL));
 
 	std::vector<Thread*> ta;
 
@@ -94,8 +98,11 @@ int main()
 		{
 			if (ta[i]->join(0))
 			{
+				u64 udata;
 				xpfAssert(ta[i]->getStatus() == Thread::TRS_FINISHED);
 				xpfAssert((u32)ta[i]->getID() == ta[i]->getExitCode());
+				xpfAssert(_g_tls.get(udata, ta[i]->getID()));
+				xpfAssert((ta[i]->getData() == udata));
 				delete ta[i];
 				ta[i] = ta[ta.size()-1];
 				ta.pop_back();
