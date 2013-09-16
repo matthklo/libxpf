@@ -29,7 +29,7 @@
 namespace xpf
 {
     // Functions defined in 'details' namespace should be only used internally by xpf.
-    // For utf convertions, use xpf::utfCon() instead.
+    // For utf conversions, use xpf::utfCon() instead.
     namespace details
     {
         s32 XPF_API utfConvInner( void * sbuf, void * dbuf, u32 scw, u32 dcw, s32 scnt, s32 dcnt );
@@ -47,9 +47,9 @@ namespace xpf
      *    srcCount: Number of SrcType items in srcBuf to be converted. 
      *              If -1 is given, it assumes the source string is null-terminated.
      *    dstCount: Max number of DstType items in dstBuf can hold.
-     *              If -1 is given, it assumes the dstBuf is large enough to hold all convertion result.
+     *              If -1 is given, it assumes the dstBuf is large enough to hold all conversion result.
      * Return value:
-     *    Return negtive number if one of SrcType and DstType is not supported.
+     *    Return negative number if one of SrcType and DstType is not supported.
      *    Return >=0 indicates how many code point have been converted.
      *    utfConv() will try to append a null in the end of dstBuf if possible.
      *
