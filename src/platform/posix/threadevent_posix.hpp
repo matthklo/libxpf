@@ -62,6 +62,8 @@ namespace xpf { namespace details {
 		{
 			pthread_mutex_lock(&m_lock);
 			m_set = false;
+			pthread_cond_destroy(&m_ready);
+			pthread_cond_init(&m_ready, NULL);
 			pthread_mutex_unlock(&m_lock);
 		}
 
@@ -77,27 +79,36 @@ namespace xpf { namespace details {
 			}
 
 			// Timed wait
-			u32 sec = (timeoutMs/1000);
-			u32 msec = (timeoutMs - (sec*1000));
 			bool ret = false;
-			pthread_mutex_lock(&m_lock);
-			if (!m_set)
+			if (m_set)
 			{
+				ret = true;
+			}
+			else
+			{
+				u32 sec = (timeoutMs/1000);
+				u32 msec = (timeoutMs - (sec*1000));
 				struct timeval tv;
 				struct timespec ts;
 				u32 carriedSec = 0;
 
+				pthread_mutex_lock(&m_lock);
 				gettimeofday(&tv, NULL);
 
 				ts.tv_nsec = (tv.tv_usec + msec) * 1000;
-				while (ts.tv_nsec >= 1000000000) { carriedSec++; ts.tv_nsec -= 1000000000; }
+				while (ts.tv_nsec >= 1000000000)
+				{
+					carriedSec++;
+					ts.tv_nsec -= 1000000000;
+				}
 
 				ts.tv_sec = tv.tv_sec + sec + carriedSec;
 
 				if ( 0 == pthread_cond_timedwait(&m_ready, &m_lock, &ts) )
 					ret = true;
+
+				pthread_mutex_unlock(&m_lock);
 			}
-			pthread_mutex_unlock(&m_lock);
 			return ret;
 		}
 

@@ -149,6 +149,7 @@ public:
 	{
 		XpfThread *thread = (XpfThread*) param;
 
+		thread->mID = XpfThread::getThreadID();
 		thread->mStartEvent->wait();
 		if (!thread->mAborting)
 		{
