@@ -30,129 +30,128 @@ namespace xpf {
 
 	// NOTE: Header-only impl.
 
-    /**
-     *  A base class for objects whose life-cycle should be controlled by reference counting.
-     *  RefCounted-derived objects born with ref count 1. Owners (except the one who new
-     *  it) of such object should increase the reference count of it by calling ref(), and  
-     *  decrease the reference count by unref() after done using. Object with a reference
-     *  count 0 will be deleted before the return of unref().
-     */
-    class RefCounted
-    {
-    public:
-        RefCounted()
-            : mRefCount(1)
-            , mDebugName(0)
-        {
-        }
+	/**
+	 *  A base class for objects whose life-cycle should be controlled by reference counting.
+	 *  RefCounted-derived objects born with ref count 1. Owners (except the one who new
+	 *  it) of such object should increase the reference count of it by calling ref(), and  
+	 *  decrease the reference count by unref() after done using. Object with a reference
+	 *  count 0 will be deleted before the return of unref().
+	 */
+	class RefCounted
+	{
+	public:
+		RefCounted()
+			: mRefCount(1)
+			, mDebugName(0)
+		{
+		}
 
-        virtual ~RefCounted()
-        {
-        }
+		virtual ~RefCounted()
+		{
+		}
 
-        virtual s32 ref() const
-        {
-            return ++mRefCount;
-        }
+		virtual s32 ref() const
+		{
+			return ++mRefCount;
+		}
 
-        virtual bool unref() const
-        {
-            xpfAssert(mRefCount > 0);
+		virtual bool unref() const
+		{
+			xpfAssert(mRefCount > 0);
 
-            if (0 == (--mRefCount))
-            {
-                delete this;
-                return true;
-            }
-            return false;
-        }
+			if (0 == (--mRefCount))
+			{
+				delete this;
+				return true;
+			}
+			return false;
+		}
 
-        inline s32 getRefCount() const
-        {
-            return mRefCount;
-        }
+		inline s32 getRefCount() const
+		{
+			return mRefCount;
+		}
 
-        inline const c8* getDebugName() const
-        {
-            return mDebugName;
-        }
+		inline const c8* getDebugName() const
+		{
+			return mDebugName;
+		}
 
-    protected:
-        // For derived class to associate a name for
-        // debugging purpose. Suggest to use a static
-        // immutable c-string since the life cycle of
-        // given string is not controlled by class.
-        void setDebugName(const c8* name)
-        {
-            mDebugName = name;
-        }
+	protected:
+		// For derived class to associate a name for
+		// debugging purpose. Suggest to use a static
+		// immutable c-string since the life cycle of
+		// given string is not controlled by class.
+		void setDebugName(const c8* name)
+		{
+			mDebugName = name;
+		}
 
-    private:
-        mutable s32  mRefCount;
-        const c8*    mDebugName;
-    };
+	private:
+		mutable s32  mRefCount;
+		const c8*    mDebugName;
+	};
 
 
+	/**
+	 *  A RefCounted-derived class with floating reference support.
+	 *  A floating reference means the object has been created with
+	 *  no owner. Whoever call ref() of this object at the first 
+	 *  place owns this object (the ref count won't increase, instead 
+	 *  the floating flag will be turn off). 
+	 *
+	 *  Ex: Class A creates a ref-counted object and than pass it to
+	 *      B and do unref() because A no more need to own the object.
+	 *
+	 *     With RefCounted obj, the code will be:
+	 *        RefCounted *obj = new MyObject;
+	 *        B.adopt(obj);  // B calls ref() on obj in adopt()
+	 *        obj->unref();
+	 *
+	 *     With FloatingRefCounted obj, the code can be shorten to:
+	 *        B.adopt(new MyFloatingRefObject);
+	 */
+	class FloatingRefCounted : virtual public RefCounted
+	{
+	public:
+		FloatingRefCounted()
+			: mFloating(true)
+		{
+		}
 
-    /**
-     *  A RefCounted-derived class with floating reference support.
-     *  A floating reference means the object has been created with
-     *  no owner. Whoever call ref() of this object at the first 
-     *  place owns this object (the ref count won't increase, instead 
-     *  the floating flag will be turn off). 
-     *
-     *  Ex: Class A creates a ref-counted object and than pass it to
-     *      B and do unref() because A no more need to own the object.
-     *
-     *     With RefCounted obj, the code will be:
-     *        RefCounted *obj = new MyObject;
-     *        B.adopt(obj);  // B calls ref() on obj in adopt()
-     *        obj->unref();
-     *
-     *     With FloatingRefCounted obj, the code can be shorten to:
-     *        B.adopt(new MyFloatingRefObject);
-     */
-    class FloatingRefCounted : virtual public RefCounted
-    {
-    public:
-        FloatingRefCounted()
-            : mFloating(true)
-        {
-        }
+		virtual ~FloatingRefCounted()
+		{
+		}
 
-        virtual ~FloatingRefCounted()
-        {
-        }
+		virtual s32 ref() const
+		{
+			if ( xpfUnlikely(mFloating) )
+			{
+				mFloating = false;
+				return getRefCount();
+			}
+			return RefCounted::ref();
+		}
 
-        virtual s32 ref() const
-        {
-            if ( xpfUnlikely(mFloating) )
-            {
-                mFloating = false;
-                return getRefCount();
-            }
-            return RefCounted::ref();
-        }
+		virtual bool unref() const
+		{
+			mFloating = false;
+			return RefCounted::unref();
+		}
 
-        virtual bool unref() const
-        {
-            mFloating = false;
-            return RefCounted::unref();
-        }
+		inline bool isFloating() const
+		{
+			return mFloating;
+		}
 
-        inline bool isFloating() const
-        {
-            return mFloating;
-        }
+		inline void setFloating(bool f)
+		{
+			mFloating = f;
+		}
 
-        inline void setFloating(bool f)
-        {
-            mFloating = f;
-        }
-
-    private:
-        mutable bool mFloating;
-    };
+	private:
+		mutable bool mFloating;
+	};
 
 } // end of namespace xpf
 

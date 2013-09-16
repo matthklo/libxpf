@@ -369,164 +369,162 @@ public:
 	}
 
 
-    //  * Simplified version, can only handle %d, %lld, %u, %llu, %x, %llx, %X, %llX, %f, %s, %%.
-    //    CAN NOT handle percision nor width specification such as %20.20s.
-    //  * Returns the final length of resulted string.
+	//  * Simplified version, can only handle %d, %lld, %u, %llu, %x, %llx, %X, %llX, %f, %s, %%.
+	//    CAN NOT handle percision nor width specification such as %20.20s.
+	//  * Returns the final length of resulted string.
 	u32 printf(const T* format, ...)
 	{
-        va_list ap;
-        va_start(ap, format);
+		va_list ap;
+		va_start(ap, format);
 
-        clear();
+		clear();
 
-        char *hextable = "0123456789abcdef";
-        int state = 0;
+		char *hextable = "0123456789abcdef";
+		int state = 0;
 
-        for (const T* p = format; *p != T(); ++p)
-        {
-            char c = (char)(*p);
+		for (const T* p = format; *p != T(); ++p)
+		{
+			char c = (char)(*p);
 
-            switch (state)
-            {
-            case 0:
-                if ('%' == c)
-                    state++;
-                else
-                    append(1, *p);
-                break;
-            case 1:
-                switch(c)
-                {
-                case 'c':
-                    {
-                        T v = va_arg(ap, T);
-                        append(1, v);
-                    }
-                    state=0;
-                    break;
-                case '%':
-                    append(1, (T)'%');
-                    state=0;
-                    break;
-                case 'l':
-                    state++;
-                    break;
-                case 'd':
-                    {
-                        int v = va_arg(ap, int);
-                        append(xpfstring<T,TAlloc>(v));
-                    }
-                    state=0;
-                    break;
-                case 'u':
-                    {
-                        unsigned int v = va_arg(ap, unsigned int);
-                        append(xpfstring<T,TAlloc>(v));
-                    }
-                    state=0;
-                    break;
-                case 'x':
-                case 'X':
-                    {
-                        xpfstring<T,TAlloc> hex;
-                        unsigned int v = va_arg(ap, unsigned int);
-                        hex.append(1, (T)hextable[(v >> 28) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 24) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 20) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 16) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 12) & 0xF]);
-                        hex.append(1, (T)hextable[(v >>  8) & 0xF]);
-                        hex.append(1, (T)hextable[(v >>  4) & 0xF]);
-                        hex.append(1, (T)hextable[v & 0xF]);
+			switch (state)
+			{
+			case 0:
+				if ('%' == c)
+					state++;
+				else
+					append(1, *p);
+				break;
+			case 1:
+				switch(c)
+				{
+				case 'c':
+					{
+						T v = va_arg(ap, T);
+						append(1, v);
+					}
+					state=0;
+					break;
+				case '%':
+					append(1, (T)'%');
+					state=0;
+					break;
+				case 'l':
+					state++;
+					break;
+				case 'd':
+					{
+						int v = va_arg(ap, int);
+						append(xpfstring<T,TAlloc>(v));
+					}
+					state=0;
+					break;
+				case 'u':
+					{
+						unsigned int v = va_arg(ap, unsigned int);
+						append(xpfstring<T,TAlloc>(v));
+					}
+					state=0;
+					break;
+				case 'x':
+				case 'X':
+					{
+						xpfstring<T,TAlloc> hex;
+						unsigned int v = va_arg(ap, unsigned int);
+						hex.append(1, (T)hextable[(v >> 28) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 24) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 20) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 16) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 12) & 0xF]);
+						hex.append(1, (T)hextable[(v >>  8) & 0xF]);
+						hex.append(1, (T)hextable[(v >>  4) & 0xF]);
+						hex.append(1, (T)hextable[v & 0xF]);
 
-                        append(('X' == c)? hex.make_upper(): hex);
-                    }
-                    state=0;
-                    break;
-                case 'f':
-                    {
-                        // va_args promote all float to double, so always use double to hold data.
-                        double v = va_arg(ap, double);
-                        append(xpfstring<T,TAlloc>(v));
-                    }
-                    state=0;
-                    break;
-                case 's':
-                    {
-                        T* v = va_arg(ap, T*);
-                        while (*v != T())
-                        {
-                            append(1, *v);
-                            v++;
-                        }
-                    }
-                    state=0;
-                    break;
-                default:
-                    state=0;
-                    break;
-                }
-                break;
-            case 2:
-                if ('l' == c)
-                    state++;
-                else
-                    state=0;
-                break;
-            case 3:
-                switch (c)
-                {
-                case 'd':
-                    {
-                        long long v = va_arg(ap, long long);
-                        append(xpfstring<T,TAlloc>(v));
-                    }
-                    break;
-                case 'u':
-                    {
-                        unsigned long long v = va_arg(ap, unsigned long long);
-                        append(xpfstring<T,TAlloc>(v));
-                    }
-                    break;
-                case 'x':
-                case 'X':
-                    {
-                        xpfstring<T,TAlloc> hex;
-                        unsigned long long v = va_arg(ap, unsigned long long);
-                        hex.append(1, (T)hextable[(v >> 60) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 56) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 52) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 48) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 44) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 40) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 36) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 32) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 28) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 24) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 20) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 16) & 0xF]);
-                        hex.append(1, (T)hextable[(v >> 12) & 0xF]);
-                        hex.append(1, (T)hextable[(v >>  8) & 0xF]);
-                        hex.append(1, (T)hextable[(v >>  4) & 0xF]);
-                        hex.append(1, (T)hextable[v & 0xF]);
+						append(('X' == c)? hex.make_upper(): hex);
+					}
+					state=0;
+					break;
+				case 'f':
+					{
+						// va_args promote all float to double, so always use double to hold data.
+						double v = va_arg(ap, double);
+						append(xpfstring<T,TAlloc>(v));
+					}
+					state=0;
+					break;
+				case 's':
+					{
+						T* v = va_arg(ap, T*);
+						while (*v != T())
+						{
+							append(1, *v);
+							v++;
+						}
+					}
+					state=0;
+					break;
+				default:
+					state=0;
+					break;
+				}
+				break;
+			case 2:
+				if ('l' == c)
+					state++;
+				else
+					state=0;
+				break;
+			case 3:
+				switch (c)
+				{
+				case 'd':
+					{
+						long long v = va_arg(ap, long long);
+						append(xpfstring<T,TAlloc>(v));
+					}
+					break;
+				case 'u':
+					{
+						unsigned long long v = va_arg(ap, unsigned long long);
+						append(xpfstring<T,TAlloc>(v));
+					}
+					break;
+				case 'x':
+				case 'X':
+					{
+						xpfstring<T,TAlloc> hex;
+						unsigned long long v = va_arg(ap, unsigned long long);
+						hex.append(1, (T)hextable[(v >> 60) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 56) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 52) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 48) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 44) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 40) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 36) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 32) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 28) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 24) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 20) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 16) & 0xF]);
+						hex.append(1, (T)hextable[(v >> 12) & 0xF]);
+						hex.append(1, (T)hextable[(v >>  8) & 0xF]);
+						hex.append(1, (T)hextable[(v >>  4) & 0xF]);
+						hex.append(1, (T)hextable[v & 0xF]);
 
-                        append(('X' == c)? hex.make_upper(): hex);
-                    }
-                    break;
-                default:
-                    break;
-                }
-                state=0;
-                break;
-            default:
-                state=0;
-                break;
-            }
-        }
-
-        va_end(ap);
-
-        return size();
+						append(('X' == c)? hex.make_upper(): hex);
+					}
+					break;
+				default:
+					break;
+				}
+				state=0;
+				break;
+			default:
+				state=0;
+				break;
+			}
+		}
+		va_end(ap);
+		return size();
 	}
 
 	// simple hash algorithm referenced from xerces-c project.
@@ -547,29 +545,29 @@ public:
 		return hashVal % modulus;
 	}
 
-    bool begin_with( const xpfstring<T,TAlloc>& str, bool ignoreCase = false ) const
-    {
-        if (size() < str.size())
-            return false;
-        xpfstring<T, TAlloc> snip = substr(0, str.size());
-        if (ignoreCase)
-        {
-            return snip.equals_ignore_case(str);
-        }
-        return (snip == str);
-    }
+	bool begin_with( const xpfstring<T,TAlloc>& str, bool ignoreCase = false ) const
+	{
+		if (size() < str.size())
+			return false;
+		xpfstring<T, TAlloc> snip = substr(0, str.size());
+		if (ignoreCase)
+		{
+			return snip.equals_ignore_case(str);
+		}
+		return (snip == str);
+	}
 
-    bool end_with( const xpfstring<T,TAlloc>& str, bool ignoreCase = false ) const
-    {
-        if (size() < str.size())
-            return false;
-        xpfstring<T, TAlloc> snip = substr( size() - str.size(), str.size() );
-        if (ignoreCase)
-        {
-            return snip.equals_ignore_case(str);
-        }
-        return (snip == str);
-    }
+	bool end_with( const xpfstring<T,TAlloc>& str, bool ignoreCase = false ) const
+	{
+		if (size() < str.size())
+			return false;
+		xpfstring<T, TAlloc> snip = substr( size() - str.size(), str.size() );
+		if (ignoreCase)
+		{
+			return snip.equals_ignore_case(str);
+		}
+		return (snip == str);
+	}
 
 };
 
