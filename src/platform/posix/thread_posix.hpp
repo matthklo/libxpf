@@ -156,7 +156,7 @@ public:
 			thread->mExitCode = thread->mHost->run(thread->getData());
 			thread->mFinishEvent->set();
 		}
-		return (void*) thread->mExitCode;
+		return (void*) (vptr) thread->mExitCode;
 	}
 
 private:
