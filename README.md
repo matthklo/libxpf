@@ -6,6 +6,7 @@ A light-wight, STLPort-based, cross-platform infrastructure library to help soft
 License: zlib
 
 Planned target platforms:
+
 *	windows
 *	mac
 *	linux
@@ -14,8 +15,9 @@ Planned target platforms:
 *	android
 
 Contributions from 3rd-party:
-* STLPort
+
+- STLPort
 > http://www.stlport.org/
-* Acf Delegate
+- Acf Delegate
 > http://www.codeproject.com/Articles/11464/Yet-Another-C-style-Delegate-Class-in-Standard-C
 	
