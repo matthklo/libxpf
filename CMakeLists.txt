@@ -23,3 +23,5 @@ ENDIF(MSVC)
 ADD_SUBDIRECTORY("./src")
 ADD_SUBDIRECTORY("./tests/threading")
 ADD_SUBDIRECTORY("./tests/string")
+ADD_SUBDIRECTORY("./tests/delegate")
+
