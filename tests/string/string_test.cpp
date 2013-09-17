@@ -1,4 +1,4 @@
-﻿/*******************************************************************************
+/*******************************************************************************
  * Copyright (c) 2013 matt@moregeek.com.tw
  *
  * This software is provided 'as-is', without any express or implied
@@ -41,7 +41,7 @@ int main()
 	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
-	wstring str1 = L"The elements of the C language library are also included as a subset of the C++ Standard library. 歐特克攜手巨匠電腦首度推出Moldflow認證  提升臺灣ICT產業競爭力";
+	wstring str1 = L"The elements of the C language library are also included as a subset of the C++ Standard library. \x6b50\x7279\x514b\x651c\x624b\x5de8\x5320\x96fb\x8166\x9996\x5ea6\x63a8\x51fa\x004d\x006f\x006c\x0064\x0066\x006c\x006f\x0077\x8a8d\x8b49\x0020\x0020\x63d0\x5347\x81fa\x7063\x0049\x0043\x0054\x7522\x696d\x7af6\x722d\x529b";
 	
 	// apply a chain of conversions ...
 	u32string str2 = to_ucs4(str1);
