@@ -204,3 +204,4 @@ xpfSAssert(4==(sizeof(wchar_t)));
 //==========----------==========//
 
 #endif // _XPF_PLATFORM_HEADER_
+

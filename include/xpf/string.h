@@ -42,7 +42,7 @@ template < typename T, typename TAlloc = std::allocator<T> >
 class xpfstring : public std::basic_string< T, std::char_traits<T>, TAlloc >
 {
 public:
-	typedef std::basic_string< T, std::char_traits<T>, TAlloc > super_type;
+	typedef std::basic_string< T, std::char_traits<T>, TAlloc > base_type;
 
 	// Type definitions available from std::basic_string :
 	//   value_type    : type of T 
@@ -55,48 +55,48 @@ public:
 public:
 	
 	explicit xpfstring (const TAlloc& alloc = TAlloc())
-		: super_type(alloc)
+		: base_type(alloc)
 	{
 	}
 
-	xpfstring (const super_type& str)
-		: super_type(str)
+	xpfstring (const base_type& str)
+		: base_type(str)
 	{
 	}
 
 	xpfstring (const xpfstring<T, TAlloc>& str)
-		: super_type(str)
+		: base_type(str)
 	{
 	}
 
-	xpfstring (const super_type& str, size_type pos, size_type len = npos, const TAlloc& alloc = TAlloc())
-		: super_type(str, pos, len, alloc)
+	xpfstring (const base_type& str, typename base_type::size_type pos, typename base_type::size_type len = base_type::npos, const TAlloc& alloc = TAlloc())
+		: base_type(str, pos, len, alloc)
 	{
 	}
 
 	xpfstring (const T* s, const TAlloc& alloc = TAlloc())
-		: super_type(s, alloc)
+		: base_type(s, alloc)
 	{
 	}
 
-	xpfstring (const T* s, size_type n, const TAlloc& alloc = TAlloc())
-		: super_type(s, n, alloc)
+	xpfstring (const T* s, typename base_type::size_type n, const TAlloc& alloc = TAlloc())
+		: base_type(s, n, alloc)
 	{
 	}
 
-	xpfstring (size_type n, T c, const TAlloc& alloc = TAlloc())
-		: super_type(n, c, alloc)
+	xpfstring (typename base_type::size_type n, T c, const TAlloc& alloc = TAlloc())
+		: base_type(n, c, alloc)
 	{
 	}
 
 	template <typename InputIterator>
 	xpfstring  (InputIterator first, InputIterator last, const TAlloc& alloc = TAlloc())
-		: super_type(first, last, alloc)
+		: base_type(first, last, alloc)
 	{
 	}
 
 	explicit xpfstring (f64 val)
-		: super_type()
+		: base_type()
 	{
 		c8 buf[128];
 		std::sprintf(buf, "%0.6f", val);
@@ -104,7 +104,7 @@ public:
 	}
 
 	explicit xpfstring (s32 val)
-		: super_type()
+		: base_type()
 	{
 		bool negative = false;
 		if (val < 0)
@@ -140,7 +140,7 @@ public:
 	}
 
 	explicit xpfstring (u32 val)
-		: super_type()
+		: base_type()
 	{
 		c8 tmpbuf[16]={0};
 		u32 idx = 15;
@@ -163,7 +163,7 @@ public:
 	}
 
 	explicit xpfstring (s64 val)
-		: super_type()
+		: base_type()
 	{
 		bool negative = false;
 		if (val < 0)
@@ -199,7 +199,7 @@ public:
 	}
 
 	explicit xpfstring (u64 val)
-		: super_type()
+		: base_type()
 	{
 		c8 tmpbuf[32]={0};
 		u32 idx = 31;
@@ -223,32 +223,32 @@ public:
 
 	template <typename B>
 	xpfstring (const B* const c)
-		: super_type()
+		: base_type()
 	{
 		*this = c;
 	}
 
-	xpfstring<T, TAlloc>& operator= (const super_type& str)
+	xpfstring<T, TAlloc>& operator= (const base_type& str)
 	{
-		super_type::operator=(str);
+		base_type::operator=(str);
 		return *this;
 	}
 
 	xpfstring<T, TAlloc>& operator= (const xpfstring<T, TAlloc>& str)
 	{
-		super_type::operator=(str);
+		base_type::operator=(str);
 		return *this;
 	}
 
 	xpfstring<T, TAlloc>& operator= (const T* s)
 	{
-		super_type::operator=(s);
+		base_type::operator=(s);
 		return *this;
 	}
 
 	xpfstring<T, TAlloc>& operator= (T c)
 	{
-		super_type::operator=(c);
+		base_type::operator=(c);
 		return *this;
 	}
 
@@ -257,11 +257,11 @@ public:
 	{
 		if (!c)
 		{
-			super_type::clear();
+			base_type::clear();
 			return *this;
 		}
 
-		if ((void*)c == (void*)super_type::c_str())
+		if ((void*)c == (void*)base_type::c_str())
 			return *this;
 
 		u32 len = 0;
@@ -269,7 +269,7 @@ public:
 		for (; *p != T(); ++p, ++len);
 
 		for (u32 l = 0; l<len; ++l)
-			super_type::append(1, (T)c[l]);
+			base_type::append(1, (T)c[l]);
 
 		return *this;
 	}
@@ -277,7 +277,7 @@ public:
 	xpfstring<T,TAlloc> make_lower() const
 	{
 		xpfstring<T,TAlloc> result;
-		for( super_type::const_iterator it = begin(); it != end(); ++it )
+		for( typename base_type::const_iterator it = base_type::begin(); it != base_type::end(); ++it )
 		{
 			T ch = *it;
 			c8 ch8 = (c8)ch;
@@ -293,7 +293,7 @@ public:
 	xpfstring<T,TAlloc> make_upper() const
 	{
 		xpfstring<T,TAlloc> result;
-		for( super_type::const_iterator it = begin(); it != end(); ++it )
+		for( typename base_type::const_iterator it = base_type::begin(); it != base_type::end(); ++it )
 		{
 			T ch = *it;
 			c8 ch8 = (c8)ch;
@@ -308,13 +308,13 @@ public:
 
 	// Note: Not efficient for large string.
 	//       May throw exceptions for bad pos/len.
-	bool equals_ignore_case( const super_type& other, s32 pos = 0, s32 len = -1) const
+	bool equals_ignore_case( const base_type& other, s32 pos = 0, s32 len = -1) const
 	{
 		if (pos < 0)
 			return false;
 
-		size_type upos = (size_type)pos;
-		size_type ulen = (len < 0)? other.size(): (size_type)len;
+		typename base_type::size_type upos = (typename base_type::size_type)pos;
+		typename base_type::size_type ulen = (len < 0)? other.size(): (typename base_type::size_type)len;
 
 		xpfstring<T,TAlloc> str1 = this->make_lower();
 		xpfstring<T,TAlloc> str2 = xpfstring<T,TAlloc>(other).make_lower();
@@ -325,37 +325,37 @@ public:
 	// return the trimmed string (remove the given characters at the begin and end of string)
 	xpfstring<T,TAlloc> trim(const xpfstring<T,TAlloc>& whitespace = " \t\n\r") const
 	{
-		size_type begin = super_type::find_first_not_of(whitespace);
-		if (begin == super_type::npos)
+		typename base_type::size_type begin = base_type::find_first_not_of(whitespace);
+		if (begin == base_type::npos)
 			return xpfstring<T,TAlloc>();
 
-		size_type end = super_type::find_last_not_of(whitespace);
+		typename base_type::size_type end = base_type::find_last_not_of(whitespace);
 		if (end < begin)
 			return xpfstring<T,TAlloc>();
 
-		return super_type::substr(begin, (end - begin + 1));
+		return base_type::substr(begin, (end - begin + 1));
 	}
 
 	// TODO: ignoreEmptyTokens is not working.
 	template <typename Container>
-	u32 split(Container& ret, const super_type& delimiter, bool ignoreEmptyTokens=true, bool keepSeparators=false) const
+	u32 split(Container& ret, const base_type& delimiter, bool ignoreEmptyTokens=true, bool keepSeparators=false) const
 	{
 		if (delimiter.empty())
 			return 0;
 
-		size_type oldSize = ret.size();
+		typename base_type::size_type oldSize = ret.size();
 		u32 lastpos = 0;
 		bool lastWasSeparator = false;
-		for (u32 i=0; i<size(); ++i)
+		for (u32 i=0; i<base_type::size(); ++i)
 		{
 			bool foundSeparator = false;
 			for (u32 j=0; j<delimiter.size(); ++j)
 			{
-				if (at(i) == delimiter[j])
+				if (base_type::at(i) == delimiter[j])
 				{
 					if ((!ignoreEmptyTokens || ((i - lastpos) != 0)) &&
 							!lastWasSeparator)
-						ret.push_back(xpfstring<T,TAlloc>(&c_str()[lastpos], i - lastpos));
+						ret.push_back(xpfstring<T,TAlloc>(&base_type::c_str()[lastpos], i - lastpos));
 					foundSeparator = true;
 					lastpos = (keepSeparators ? i : i + 1);
 					break;
@@ -363,8 +363,8 @@ public:
 			}
 			lastWasSeparator = foundSeparator;
 		}
-		if ((size() - 1) > lastpos)
-			ret.push_back(xpfstring<T,TAlloc>(&c_str()[lastpos], (size() - 1) - lastpos));
+		if ((base_type::size() - 1) > lastpos)
+			ret.push_back(xpfstring<T,TAlloc>(&base_type::c_str()[lastpos], (base_type::size() - 1) - lastpos));
 		return ret.size() - oldSize;
 	}
 
@@ -377,7 +377,7 @@ public:
 		va_list ap;
 		va_start(ap, format);
 
-		clear();
+		base_type::clear();
 
 		char *hextable = "0123456789abcdef";
 		int state = 0;
@@ -524,19 +524,19 @@ public:
 			}
 		}
 		va_end(ap);
-		return size();
+		return base_type::size();
 	}
 
 	// simple hash algorithm referenced from xerces-c project.
 	inline u32 hash(const u32 modulus = 10993UL, const s32 len = -1, const s32 offset = 0) const
 	{
-		u32 ulen = (len < 0)? size(): (u32)len;
+		u32 ulen = (len < 0)? base_type::size(): (u32)len;
 		u32 uoff = (offset < 0)? 0: (u32)offset;
 		
-		if (uoff + ulen > size())
+		if (uoff + ulen > base_type::size())
 			return 0;
 
-		const T* curCh = c_str() + uoff;
+		const T* curCh = base_type::c_str() + uoff;
 		u32 hashVal = (u32)(*curCh++);
 
 		for (u32 i=0; i<ulen; ++i)
@@ -547,7 +547,7 @@ public:
 
 	bool begin_with( const xpfstring<T,TAlloc>& str, bool ignoreCase = false ) const
 	{
-		if (size() < str.size())
+		if (base_type::size() < str.size())
 			return false;
 		xpfstring<T, TAlloc> snip = substr(0, str.size());
 		if (ignoreCase)
@@ -559,9 +559,9 @@ public:
 
 	bool end_with( const xpfstring<T,TAlloc>& str, bool ignoreCase = false ) const
 	{
-		if (size() < str.size())
+		if (base_type::size() < str.size())
 			return false;
-		xpfstring<T, TAlloc> snip = substr( size() - str.size(), str.size() );
+		xpfstring<T, TAlloc> snip = substr( base_type::size() - str.size(), str.size() );
 		if (ignoreCase)
 		{
 			return snip.equals_ignore_case(str);
@@ -583,3 +583,4 @@ typedef xpfstring<wchar_t> wstring;
 #endif
 
 #endif // _XPF_STRING_HEADER_
+

@@ -50,3 +50,4 @@ private:
 } // end of namespace xpf
 
 #endif // _XPF_THREADEVENT_HEADER_
+

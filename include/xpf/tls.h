@@ -79,7 +79,7 @@ public:
 			tid = Thread::getThreadID();
 		}
 
-		StorageMapType::iterator it = mMap.find(tid);
+		typename StorageMapType::iterator it = mMap.find(tid);
 		if (it != mMap.end())
 		{
 			outData = it->second;
@@ -107,3 +107,4 @@ private:
 }; // end of namespace xpf
 
 #endif // _XPF_TLS_HEADER_
+

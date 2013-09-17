@@ -114,3 +114,4 @@ private:
 } // end of namespace xpf
 
 #endif // _XPF_THREAD_HEADER_
+
