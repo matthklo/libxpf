@@ -379,7 +379,7 @@ public:
 
 		base_type::clear();
 
-		char *hextable = "0123456789abcdef";
+		const char *hextable = "0123456789abcdef";
 		int state = 0;
 
 		for (const T* p = format; *p != T(); ++p)
@@ -399,8 +399,10 @@ public:
 				{
 				case 'c':
 					{
-						T v = va_arg(ap, T);
-						append(1, v);
+						// care about self-promoting types
+						int v = va_arg(ap, int);
+						T vv = (T)v;
+						append(1, vv);
 					}
 					state=0;
 					break;

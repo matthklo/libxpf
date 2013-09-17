@@ -62,10 +62,10 @@ int main()
 	float fval = 12345.625f;
 	double dval = 54321.5725;
 
-	char* format = "abc %f %s %%(%c) test %f @#$^& %%(%X) haha";
-	char* str = "%%%ddd%%%";
-	char ch = '%';
-	char* validOutput = "abc 12345.625000 %%%ddd%%% %(%) test 54321.572500 @#$^& %(FEE1DEAD) haha";
+	const char* format = "abc %f %s %%(%c) test %f @#$^& %%(%X) haha";
+	const char* str = "%%%ddd%%%";
+	const char ch = '%';
+	const char* validOutput = "abc 12345.625000 %%%ddd%%% %(%) test 54321.572500 @#$^& %(FEE1DEAD) haha";
 
 	{
 		string utf8fmt = format;
