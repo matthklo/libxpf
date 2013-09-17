@@ -22,6 +22,7 @@
  ********************************************************************************/
 
 #include <xpf/utfconv.h>
+#include <xpf/lexicalcast.h>
 #include <stdio.h>
 #include <vector>
 
@@ -33,7 +34,6 @@
 #endif
 
 using namespace xpf;
-
 
 int main()
 {
@@ -124,6 +124,16 @@ int main()
 		xpfAssert((cnt == 10));
 	}
 
+	// lexical cast
+	{
+		double v = xpf::lexical_cast<double>(L"0.546");
+		xpfAssert((v > 0.545) && (v < 0.547));
+	}
+
+	{
+		wstring aaa = xpf::lexical_cast<wchar_t>(false);
+		xpfAssert(aaa == L"false");
+	}
 
 	printf("string test pass.\n");
 	return 0;

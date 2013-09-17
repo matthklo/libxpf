@@ -29,7 +29,7 @@
 #include <cstdio>
 #include <stdarg.h>
 
-#ifdef XPF_PLATFORM_WINDOWS
+#if defined(XPF_PLATFORM_WINDOWS) && defined(XPF_COMPILER_MSVC)
 #pragma warning ( push )
 #pragma warning ( disable : 4996 )
 #endif
@@ -580,7 +580,7 @@ typedef xpfstring<wchar_t> wstring;
 
 }; // end of namespace xpf
 
-#ifdef XPF_PLATFORM_WINDOWS
+#if defined(XPF_PLATFORM_WINDOWS) && defined(XPF_COMPILER_MSVC)
 #pragma warning ( pop )
 #endif
 
