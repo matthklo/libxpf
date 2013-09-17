@@ -63,7 +63,7 @@ namespace xpf {
 			(typeid(s32) == typeid(TargetType)) )
 		{
 			s32 buf;
-			std::sscanf(srcText.c_str(), "%ld", &buf);
+			std::sscanf(srcText.c_str(), "%d", &buf);
 			return (TargetType) buf;
 		}
 		else if ((typeid(u8) == typeid(TargetType)) ||
@@ -71,7 +71,7 @@ namespace xpf {
 				 (typeid(u32) == typeid(TargetType)))
 		{
 			u32 buf;
-			std::sscanf(srcText.c_str(), "%lu", &buf);
+			std::sscanf(srcText.c_str(), "%u", &buf);
 			return (TargetType) buf;
 		}
 		else if (typeid(s64) == typeid(TargetType))
@@ -119,14 +119,14 @@ namespace xpf {
 			(typeid(s16) == typeid(ValueType)) ||
 			(typeid(s32) == typeid(ValueType)) )
 		{
-			xpfstring<TargetType> format("%ld");
+			xpfstring<TargetType> format("%d");
 			result.printf(format.c_str(), (s32)val);
 		}
 		else if ((typeid(u8) == typeid(ValueType)) ||
 				 (typeid(u16) == typeid(ValueType)) ||
 				 (typeid(u32) == typeid(ValueType)))
 		{
-			xpfstring<TargetType> format("%lu");
+			xpfstring<TargetType> format("%u");
 			result.printf(format.c_str(), (u32)val);
 		}
 		else if (typeid(s64) == typeid(ValueType))
