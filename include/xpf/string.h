@@ -392,7 +392,7 @@ public:
 				if ('%' == c)
 					state++;
 				else
-					append(1, *p);
+					base_type::append(1, *p);
 				break;
 			case 1:
 				switch(c)
@@ -402,12 +402,12 @@ public:
 						// care about self-promoting types
 						int v = va_arg(ap, int);
 						T vv = (T)v;
-						append(1, vv);
+						base_type::append(1, vv);
 					}
 					state=0;
 					break;
 				case '%':
-					append(1, (T)'%');
+					base_type::append(1, (T)'%');
 					state=0;
 					break;
 				case 'l':
@@ -416,14 +416,14 @@ public:
 				case 'd':
 					{
 						int v = va_arg(ap, int);
-						append(xpfstring<T,TAlloc>(v));
+						base_type::append(xpfstring<T,TAlloc>(v));
 					}
 					state=0;
 					break;
 				case 'u':
 					{
 						unsigned int v = va_arg(ap, unsigned int);
-						append(xpfstring<T,TAlloc>(v));
+						base_type::append(xpfstring<T,TAlloc>(v));
 					}
 					state=0;
 					break;
@@ -441,7 +441,7 @@ public:
 						hex.append(1, (T)hextable[(v >>  4) & 0xF]);
 						hex.append(1, (T)hextable[v & 0xF]);
 
-						append(('X' == c)? hex.make_upper(): hex);
+						base_type::append(('X' == c)? hex.make_upper(): hex);
 					}
 					state=0;
 					break;
@@ -449,7 +449,7 @@ public:
 					{
 						// va_args promote all float to double, so always use double to hold data.
 						double v = va_arg(ap, double);
-						append(xpfstring<T,TAlloc>(v));
+						base_type::append(xpfstring<T,TAlloc>(v));
 					}
 					state=0;
 					break;
@@ -458,7 +458,7 @@ public:
 						T* v = va_arg(ap, T*);
 						while (*v != T())
 						{
-							append(1, *v);
+							base_type::append(1, *v);
 							v++;
 						}
 					}
@@ -481,13 +481,13 @@ public:
 				case 'd':
 					{
 						long long v = va_arg(ap, long long);
-						append(xpfstring<T,TAlloc>(v));
+						base_type::append(xpfstring<T,TAlloc>(v));
 					}
 					break;
 				case 'u':
 					{
 						unsigned long long v = va_arg(ap, unsigned long long);
-						append(xpfstring<T,TAlloc>(v));
+						base_type::append(xpfstring<T,TAlloc>(v));
 					}
 					break;
 				case 'x':
@@ -512,7 +512,7 @@ public:
 						hex.append(1, (T)hextable[(v >>  4) & 0xF]);
 						hex.append(1, (T)hextable[v & 0xF]);
 
-						append(('X' == c)? hex.make_upper(): hex);
+						base_type::append(('X' == c)? hex.make_upper(): hex);
 					}
 					break;
 				default:
