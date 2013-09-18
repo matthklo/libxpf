@@ -30,9 +30,32 @@
 
 namespace xpf {
 
-class MemoryPool;
+struct MemoryPoolDetails;
 
-template < typename T , MemoryPool * _Pool >
+class XPF_API MemoryPool
+{
+public:
+	static u32         create( u32 poolSize ); // in bytes. 1Kb ~ 2Gb
+	static MemoryPool* instance();
+
+public:
+	~MemoryPool();
+
+	u32   capacity () const;
+	void* alloc ( u32 bytes );
+	void  dealloc ( void *p, u32 bytes );
+
+protected:
+	explicit MemoryPool ( u32 poolSize ); 
+
+private:
+	MemoryPool ( const MemoryPool& other ) {}
+	MemoryPool& operator = ( const MemoryPool& other ) { return *this; }
+
+	MemoryPoolDetails *mDetails;
+};
+
+template < typename T >
 class MemoryPoolAllocator
 {
 public:
@@ -44,12 +67,11 @@ public:
 	typedef u32 size_type;
 
 	template < typename U >
-	struct rebind { typedef MemoryPoolAllocator<U, _Pool> other; };
+	struct rebind { typedef MemoryPoolAllocator<U> other; };
 
 public:
-	explicit MemoryPoolAllocator ()
+	MemoryPoolAllocator ()
 	{
-		mPool = _Pool;
 	}
 
 	MemoryPoolAllocator ( const MemoryPoolAllocator& other )
@@ -57,7 +79,7 @@ public:
 	}
 
 	template < typename U >
-	MemoryPoolAllocator ( const MemoryPoolAllocator<U, _Pool>& other )
+	MemoryPoolAllocator ( const MemoryPoolAllocator<U>& other )
 	{
 	}
 
@@ -70,7 +92,7 @@ public:
 	}
 
 	template < typename U >
-	MemoryPoolAllocator& operator = ( const MemoryPoolAllocator<U, _Pool>& other )
+	MemoryPoolAllocator& operator = ( const MemoryPoolAllocator<U>& other )
 	{
 	}
 
@@ -86,17 +108,20 @@ public:
 
 	pointer allocate ( size_type n, void* hint = 0 )
 	{
-		return mPool->alloc(n * sizeof(value_type));
+		MemoryPool *mp = MemoryPool::instance();
+		return mp->alloc(n * sizeof(value_type));
 	}
 
 	void deallocate ( pointer p, size_type n )
 	{
-		mPool->dealloc( (void*) p, n * sizeof(value_type) );
+		MemoryPool *mp = MemoryPool::instance();
+		mp->dealloc( (void*) p, n * sizeof(value_type) );
 	}
 
 	size_type max_size() const
 	{
-		return (mPool->capacity() / sizeof(value_type));
+		MemoryPool *mp = MemoryPool::instance();
+		return (mp->capacity() / sizeof(value_type));
 	}
 
 	void construct ( pointer p, const_reference val )
@@ -108,54 +133,6 @@ public:
 	{
 		p->~value_type();
 	}
-
-private:
-	MemoryPool *mPool;
-};
-
-class MemoryPool
-{
-public:
-	explicit MemoryPool ( u32 poolSize )  // in bytes. 1Kb ~ 2Gb
-		: mCapacity ( poolSize )
-	{
-		u32 i = 1024;
-		while ( i < poolSize )
-		{
-			i <<= 1;
-			if (0x80000000 == i)
-				break;
-		}
-		mCapacity = i;
-		mBuffer = new char[mCapacity];
-	}
-
-	~MemoryPool()
-	{
-		delete[] mBuffer;
-		mBuffer = (char*) 0xfefefefe;
-	}
-
-	u32 capacity() const
-	{
-		return mCapacity;
-	}
-
-	void* alloc ( u32 bytes )
-	{
-		return 0;
-	}
-
-	void dealloc ( void *p, u32 bytes )
-	{
-	}
-
-private:
-	MemoryPool ( const MemoryPool& other ) {}
-	MemoryPool& operator = ( const MemoryPool& other ) {}
-
-	u32    mCapacity;
-	char  *mBuffer;
 };
 
 }; // end of namespace xpf
