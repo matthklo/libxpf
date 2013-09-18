@@ -104,6 +104,7 @@ struct MemoryPoolTier
 		{
 			return (void*)(Details->Chunk + (cell * CellSize));
 		}
+		throw std::bad_alloc();
 		return NULL;
 	}
 
@@ -132,6 +133,7 @@ struct MemoryPoolTier
 			}
 
 			u32 obtainedCell = (upperCell << 1);
+			UsedCells.insert(obtainedCell);
 			FreeCells.insert(obtainedCell + 1);
 			return obtainedCell;
 		}
@@ -159,7 +161,7 @@ struct MemoryPoolTier
 			if ( xpfUnlikely (cnt > 0))
 			{
 				// merge them and give it back to upper tier.
-				Details->Tiers[Index+1].recycle(cell/2);
+				Details->Tiers[Index+1].recycle((cell >> 1));
 				return;
 			}
 		}
@@ -228,7 +230,10 @@ void* MemoryPool::alloc ( u32 bytes )
 	// determine which tier we're dealing with
 	u32 tier = _NearsetTier( bytes );
 	if ( xpfUnlikely (-1L == tier) )
+	{
+		throw std::bad_alloc();
 		return NULL;
+	}
 
 	return mDetails->Tiers[tier].alloc();
 }

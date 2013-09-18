@@ -109,7 +109,7 @@ public:
 	pointer allocate ( size_type n, void* hint = 0 )
 	{
 		MemoryPool *mp = MemoryPool::instance();
-		return mp->alloc(n * sizeof(value_type));
+		return (pointer) mp->alloc(n * sizeof(value_type));
 	}
 
 	void deallocate ( pointer p, size_type n )
