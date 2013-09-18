@@ -250,12 +250,18 @@ void MemoryPool::dealloc ( void *p, u32 bytes )
 
 u32 MemoryPool::create( u32 poolSize )
 {
+	destory();
+	MemoryPoolDetails::Instance = new MemoryPool(poolSize);
+	return MemoryPoolDetails::Instance->capacity();
+}
+
+void MemoryPool::destory()
+{
 	if ( xpfLikely (MemoryPoolDetails::Instance) )
 	{
 		delete MemoryPoolDetails::Instance;
+		MemoryPoolDetails::Instance = 0;
 	}
-	MemoryPoolDetails::Instance = new MemoryPool(poolSize);
-	return MemoryPoolDetails::Instance->capacity();
 }
 
 MemoryPool* MemoryPool::instance()

@@ -36,6 +36,7 @@ class XPF_API MemoryPool
 {
 public:
 	static u32         create( u32 poolSize ); // in bytes. 1Kb ~ 2Gb
+	static void        destory();
 	static MemoryPool* instance();
 
 public:
