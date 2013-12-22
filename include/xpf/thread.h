@@ -39,7 +39,8 @@ public:
 	{
 		TRS_READY = 0,  // Created but not yet started.
 		TRS_RUNNING,    // Started but not yet finished.
-		TRS_FINISHED,   // Finished.
+		TRS_FINISHED,   // Finished (returned from run()).
+		TRS_JOINED,     // Finished and joined.
 	};
 
 public:

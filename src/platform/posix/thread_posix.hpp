@@ -57,6 +57,7 @@ public:
 		case Thread::TRS_FINISHED:
 			join(-1L);
 			break;
+		case Thread::TRS_JOINED:
 		default:
 			break;
 		}
@@ -74,16 +75,16 @@ public:
 
 	inline bool join(u32 timeoutMs /*= -1L*/)
 	{
-		if (mStatus == Thread::TRS_FINISHED)
+		if (mStatus == Thread::TRS_JOINED)
 			return true;
 
-		if ((mStatus == Thread::TRS_RUNNING) &&
+		if ((mStatus != Thread::TRS_READY) &&
 			((-1L == timeoutMs) || (mFinishEvent->wait(timeoutMs))))
 		{
 			pthread_join(mThreadHandle, NULL);
 			pthread_detach(mThreadHandle);
 			mThreadHandle = 0;
-			mStatus = Thread::TRS_FINISHED;
+			mStatus = Thread::TRS_JOINED;
 			return true;
 		}
 		return false;
@@ -155,6 +156,7 @@ public:
 		{
 			thread->mExitCode = thread->mHost->run(thread->getData());
 			thread->mFinishEvent->set();
+			thread->mStatus = Thread::TRS_FINISHED;
 		}
 		return (void*) (vptr) thread->mExitCode;
 	}

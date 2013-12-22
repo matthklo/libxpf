@@ -20,9 +20,10 @@
  * 3. This notice may not be removed or altered from any source
  *    distribution.
  ********************************************************************************/
- 
+
 #include <xpf/thread.h>
-#include <xpf/tls.h>
+#include <xpf/atomic.h>
+#include <stdio.h>
 
 #ifdef XPF_PLATFORM_WINDOWS
 // http://msdn.microsoft.com/en-us/library/vstudio/x98tx3cf.aspx
@@ -31,90 +32,81 @@
 #include <crtdbg.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <vector>
-#include <time.h>
-
 using namespace xpf;
 
-ThreadLocalStorage<u64> _g_tls;
+static int _g_hot = 0;
 
 class MyThread : public Thread
 {
 public:
-	MyThread() : tid(Thread::INVALID_THREAD_ID) {}
-	~MyThread() { printf("Thread [%llu] terminated.\n", tid); }
+	MyThread(int count, int step)
+		: mCount(count), mStep(step)
+	{
+	}
 
 	u32 run(u64 userdata)
 	{
-		if (Thread::INVALID_THREAD_ID == tid)
+		while (mCount--)
 		{
-			tid = Thread::getThreadID();
-		}
+			// not thread-safe:
+			//_g_hot += mStep;
 
-		u64 sec = userdata;
-		while (sec--)
-		{
-			printf("Thread [%llu]: Remaining %llu seconds. \n", tid, sec);
-			Thread::sleep(1000);
-			_g_tls.put(userdata, true);
+			// thread-safe:
+			xpfAtomicAddS32(&_g_hot, mStep);
 		}
-
-		return (u32)tid;
+		return 0;
 	}
 
 private:
-	ThreadID tid;
+	int       mCount;
+	const int mStep;
 };
 
 int main()
 {
-#ifdef XPF_PLATFORM_WINDOWS
-	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
-#endif
+	MyThread *threadVector[8] = {
+		new MyThread(10000, 1),
+		new MyThread(3334, 1),
+		new MyThread(10000, 2),
+		new MyThread(3333, 2),
+		new MyThread(5000, -2),
+		new MyThread(10000, -1),
+		new MyThread(10000, -1),
+		new MyThread(10000, -1),
+	};
 
-	::srand((unsigned int)::time(NULL));
+	for (u32 i=0; i<8; i++)
+		threadVector[i]->start();
 
-	std::vector<Thread*> ta;
+	printf("Test started.\n");
 
-	for (int i=0; i<30; ++i)
+	while(true)
 	{
-		ta.push_back(new MyThread);
-		ta.back()->setData((u64)(rand()%30 + 1));
-	}
-
-	for (unsigned int i=0; i<ta.size(); ++i)
-	{
-		xpfAssert(ta[i]->getStatus() == Thread::TRS_READY);
-		ta[i]->start();
-	}
-
-	while(ta.size() > 0)
-	{
-		u32 i;
-		bool joinedAny = false;
-		for (i=0; i<ta.size(); ++i)
+		Thread::sleep(1000);
+		bool quit = true;
+		for (u32 i=0; i<8; i++)
 		{
-			if (ta[i]->join(0))
+			if (threadVector[i]->getStatus() != Thread::TRS_FINISHED)
 			{
-				u64 udata;
-				xpfAssert(ta[i]->getStatus() == Thread::TRS_JOINED);
-				xpfAssert((u32)ta[i]->getID() == ta[i]->getExitCode());
-				xpfAssert(_g_tls.get(udata, ta[i]->getID()));
-				xpfAssert((ta[i]->getData() == udata));
-				delete ta[i];
-				ta[i] = ta[ta.size()-1];
-				ta.pop_back();
-				i--;
-				joinedAny = true;
+				quit = false;
 				break;
 			}
 		}
 
-		if (!joinedAny)
-		Thread::sleep(1000);
+		if (quit)
+			break;
 	}
 
+	printf("Test finished. Joining all threads ...\n");
+	for (u32 i=0; i<8; i++)
+		threadVector[i]->join();
+
+	printf("All threads joined ...\n");
+	for (u32 i=0; i<8; i++)
+		delete threadVector[i];
+
+	xpfAssert(_g_hot == 0);
+
+	printf("Test pass.\n");
 	return 0;
 }

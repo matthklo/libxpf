@@ -38,7 +38,7 @@
 // A way to disable assert() which shushes more compilers than just define an empty macro body (the way used by assert.h).
 #	define xpfAssert(x) do { (void)sizeof(x); } while((void)(__LINE__==-1),false)
 #else
-#	include <assert.h> 
+#	include <assert.h>
 #	define xpfAssert assert
 #endif
 

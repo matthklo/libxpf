@@ -60,6 +60,7 @@ public:
 		case Thread::TRS_FINISHED:
 			join(0xFFFFFFFF);
 			break;
+		case Thread::TRS_JOINED:
 		default:
 			break;
 		}
@@ -73,16 +74,16 @@ public:
 
 	inline bool join(u32 timeoutMs /*= -1L*/)
 	{
-		if (mStatus == Thread::TRS_FINISHED)
+		if (mStatus == Thread::TRS_JOINED)
 			return true;
 
-		if ((mStatus == Thread::TRS_RUNNING) &&
+		if ((mStatus != Thread::TRS_READY) &&
 			(WAIT_OBJECT_0 == ::WaitForSingleObject(mThreadHandle, timeoutMs)))
 		{
 			// Do not call _endthreadex() or CloseHandle() on mThreadHandle
-			// since windows guarantee a _endthreadex() will be called after
+			// since Windows guarantees a _endthreadex() will be called after
 			// the thread routine returns.
-			mStatus = Thread::TRS_FINISHED;
+			mStatus = Thread::TRS_JOINED;
 			mThreadHandle = (HANDLE)Thread::INVALID_THREAD_ID;
 			return true;
 		}
@@ -151,6 +152,7 @@ public:
 		if (!thread->mAborting)
 		{
 			thread->mExitCode = thread->mHost->run(thread->getData());
+			thread->mStatus = Thread::TRS_FINISHED;
 		}
 		return thread->mExitCode;
 	}
