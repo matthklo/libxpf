@@ -257,7 +257,7 @@ u32 MemoryPool::create( u32 poolSize )
 
 void MemoryPool::destory()
 {
-	if ( xpfLikely (MemoryPoolDetails::Instance) )
+	if ( xpfLikely (MemoryPoolDetails::Instance != 0) )
 	{
 		delete MemoryPoolDetails::Instance;
 		MemoryPoolDetails::Instance = 0;
