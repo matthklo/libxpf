@@ -52,7 +52,7 @@ public:
 			//_g_hot += mStep;
 
 			// thread-safe:
-			xpfAtomicAddS32(&_g_hot, mStep);
+			xpfAtomicAdd(&_g_hot, mStep);
 		}
 		return 0;
 	}

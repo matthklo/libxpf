@@ -48,10 +48,10 @@
 #  elif _MSC_VER >= 1600
      // Visual Studio 2010
 #    define XPF_COMPILER_MSVC100 1
-#  elif MSC_VER >= 1500
+#  elif _MSC_VER >= 1500
      // Visual Studio 2008
 #    define XPF_COMPILER_MSVC90 1
-#  elif MSC_VER >= 1400
+#  elif _MSC_VER >= 1400
      // Visual Studio 2005
 #    define XPF_COMPILER_MSVC80 1
 #  else

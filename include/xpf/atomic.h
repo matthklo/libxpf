@@ -26,36 +26,111 @@
 
 #include "platform.h"
 
-// Atomic add: Add the value pointed by 'val' with d and save the result back to 'val'. 
-//             Returns the value before adding.
-xpf::s32 XPF_API xpfAtomicAddS32(volatile xpf::s32 *val, xpf::s32 d);
-xpf::u32 XPF_API xpfAtomicAddU32(volatile xpf::u32 *val, xpf::u32 d);
-xpf::s64 XPF_API xpfAtomicAddS64(volatile xpf::s64 *val, xpf::s64 d);
-xpf::u64 XPF_API xpfAtomicAddU64(volatile xpf::u64 *val, xpf::u64 d);
+#ifdef XPF_COMPILER_MSVC
+#  if _MSC_VER < 1400
+#    error Atmoic intrinsics only work on MSVC 2005 or later version.
+#  endif
 
-// Atomic AND: Perform logical AND on the value pointed by 'val' with d and save the result back to 'val'.
-//             Returns the value before operation.
-xpf::c8  XPF_API xpfAtomicAndS8 (volatile xpf::c8  *val, xpf::c8  d);
-xpf::s16 XPF_API xpfAtomicAndS16(volatile xpf::s16 *val, xpf::s16 d);
-xpf::s32 XPF_API xpfAtomicAndS32(volatile xpf::s32 *val, xpf::s32 d);
+#  define XPF_HAVE_ATOMIC_OPERATIONS
+#  include <intrin.h>
 
-// Atomic OR: Perform logical OR on the value pointed by 'val' with d and save the result back to 'val'.
-//             Returns the value before operation.
-xpf::c8  XPF_API xpfAtomicOrS8 (volatile xpf::c8  *val, xpf::c8  d);
-xpf::s16 XPF_API xpfAtomicOrS16(volatile xpf::s16 *val, xpf::s16 d);
-xpf::s32 XPF_API xpfAtomicOrS32(volatile xpf::s32 *val, xpf::s32 d);
+// Atomic ADD: Returns the value before adding.
+//  Ex:
+//     xpf::s32 val, addend = 10;
+//     xpf::s32 old = xpfAtomicAdd(&val, addend);
+#define xpfAtomicAdd(_Val, _Add)   _InterlockedExchangeAdd((volatile long*)_Val, _Add)
+#define xpfAtomicAdd64(_Val, _Add) _InterlockedExchangeAdd64((volatile __int64*)_Val, _Add)
 
-// Atomic XOR: Perform logical XOR on the value pointed by 'val' with d and save the result back to 'val'.
-//             Returns the value before operation.
-xpf::c8  XPF_API xpfAtomicXorS8 (volatile xpf::c8  *val, xpf::c8  d);
-xpf::s16 XPF_API xpfAtomicXorS16(volatile xpf::s16 *val, xpf::s16 d);
-xpf::s32 XPF_API xpfAtomicXorS32(volatile xpf::s32 *val, xpf::s32 d);
 
-// Atomic Compare-and-swap operation: Compare the value pointed by 'val' to oldValue.
-//                                    If equal, swap the value to be newVlaue.
-//                                    Return the initial value store in 'val' BEFORE the operation.
-xpf::s16 XPF_API xpfAtomicCASS16(volatile xpf::s16 *val, xpf::s16 newValue, xpf::s16 oldValue);
-xpf::s32 XPF_API xpfAtomicCASS32(volatile xpf::s32 *val, xpf::s32 newValue, xpf::s32 oldValue);
-xpf::s64 XPF_API xpfAtomicCASS64(volatile xpf::s64 *val, xpf::s64 newValue, xpf::s64 oldValue);
+// Atomic OR: Returns the value before OR.
+//  Ex:
+//     xpf::s32 val, mask = 0xf0f0f0f0;
+//     xpf::s32 old = xpfAtomicOr(&val, mask);
+#define xpfAtomicOr(_Val, _Add)   _InterlockedOr((volatile long*)_Val, _Add)
+#define xpfAtomicOr8(_Val, _Add)  _InterlockedOr8((volatile char*)_Val, _Add)
+#define xpfAtomicOr16(_Val, _Add) _InterlockedOr16((volatile short*)_Val, _Add)
+#define xpfAtomicOr64(_Val, _Add) _InterlockedOr64((volatile __int64*)_Val, _Add)
+
+
+// Atomic AND: Returns the value before AND.
+//  Ex:
+//     xpf::s32 val, mask = 0xf0f0f0f0;
+//     xpf::s32 old = xpfAtomicAnd(&val, mask);
+#define xpfAtomicAnd(_Val, _Add)   _InterlockedAnd((volatile long*)_Val, _Add)
+#define xpfAtomicAnd8(_Val, _Add)  _InterlockedAnd8((volatile char*)_Val, _Add)
+#define xpfAtomicAnd16(_Val, _Add) _InterlockedAnd16((volatile short*)_Val, _Add)
+#define xpfAtomicAnd64(_Val, _Add) _InterlockedAnd64((volatile __int64*)_Val, _Add)
+
+
+// Atomic XOR: Returns the value before XOR.
+//  Ex:
+//     xpf::s32 val, mask = 0xf0f0f0f0;
+//     xpf::s32 old = xpfAtomicXor(&val, mask);
+#define xpfAtomicXor(_Val, _Add)   _InterlockedXor((volatile long*)_Val, _Add)
+#define xpfAtomicXor8(_Val, _Add)  _InterlockedXor8((volatile char*)_Val, _Add)
+#define xpfAtomicXor16(_Val, _Add) _InterlockedXor16((volatile short*)_Val, _Add)
+#define xpfAtomicXor64(_Val, _Add) _InterlockedXor64((volatile __int64*)_Val, _Add)
+
+
+// Atomic Compare-and-swap operation (CAS): Compare the value pointed by '_dest' to '_comperand'.
+//                                          If equal, swap the value to be '_exchange'.
+//                                          Return the initial value store in '_dest' BEFORE the operation.
+#define xpfAtomicCAS(_dest, _comperand, _exchange)   _InterlockedCompareExchange((volatile long*)_dest, _exchange, _comperand)
+#define xpfAtomicCAS16(_dest, _comperand, _exchange) _InterlockedCompareExchange16((volatile short*)_dest, _exchange, _comperand)
+#define xpfAtomicCAS64(_dest, _comperand, _exchange) _InterlockedCompareExchange64((volatile __int64*)_dest, _exchange, _comperand)
+
+
+#elif defined(XPF_COMPILER_GNUC)
+
+#  define XPF_HAVE_ATOMIC_OPERATIONS
+
+// Atomic ADD: Returns the value before adding.
+//  Ex:
+//     xpf::s32 val, addend = 10;
+//     xpf::s32 old = xpfAtomicAdd(&val, addend);
+#define xpfAtomicAdd   __sync_fetch_and_add
+#define xpfAtomicAdd64 __sync_fetch_and_add
+
+
+// Atomic OR: Returns the value before OR.
+//  Ex:
+//     xpf::s32 val, mask = 0xf0f0f0f0;
+//     xpf::s32 old = xpfAtomicOr(&val, mask);
+#define xpfAtomicOr   __sync_fetch_and_or
+#define xpfAtomicOr8  __sync_fetch_and_or
+#define xpfAtomicOr16 __sync_fetch_and_or
+#define xpfAtomicOr64 __sync_fetch_and_or
+
+// Atomic AND: Returns the value before AND.
+//  Ex:
+//     xpf::s32 val, mask = 0xf0f0f0f0;
+//     xpf::s32 old = xpfAtomicAnd(&val, mask);
+#define xpfAtomicAnd   __sync_fetch_and_and
+#define xpfAtomicAnd8  __sync_fetch_and_and
+#define xpfAtomicAnd16 __sync_fetch_and_and
+#define xpfAtomicAnd64 __sync_fetch_and_and
+
+
+// Atomic XOR: Returns the value before XOR.
+//  Ex:
+//     xpf::s32 val, mask = 0xf0f0f0f0;
+//     xpf::s32 old = xpfAtomicXor(&val, mask);
+#define xpfAtomicXor   __sync_fetch_and_xor
+#define xpfAtomicXor8  __sync_fetch_and_xor
+#define xpfAtomicXor16 __sync_fetch_and_xor
+#define xpfAtomicXor64 __sync_fetch_and_xor
+
+
+// Atomic Compare-and-swap operation (CAS): Compare the value pointed by '_dest' to '_comperand'.
+//                                          If equal, swap the value to be '_exchange'.
+//                                          Return the initial value store in '_dest' BEFORE the operation.
+#define xpfAtomicCAS(_dest, _comperand, _exchange)   __sync_val_compare_and_swap(_dest, _comperand, _exchange)
+#define xpfAtomicCAS16(_dest, _comperand, _exchange) __sync_val_compare_and_swap(_dest, _comperand, _exchange)
+#define xpfAtomicCAS64(_dest, _comperand, _exchange) __sync_val_compare_and_swap(_dest, _comperand, _exchange)
+
+
+#else
+# error Atomic operations have not yet implemented for your compiler.
+#endif
 
 #endif // _XPF_ATOMIC_HEADER_
