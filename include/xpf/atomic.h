@@ -38,46 +38,46 @@
 //  Ex:
 //     xpf::s32 val, addend = 10;
 //     xpf::s32 old = xpfAtomicAdd(&val, addend);
-#define xpfAtomicAdd(_Val, _Add)   _InterlockedExchangeAdd((volatile long*)_Val, _Add)
-#define xpfAtomicAdd64(_Val, _Add) _InterlockedExchangeAdd64((volatile __int64*)_Val, _Add)
+#define xpfAtomicAdd(_Ptr, _Add)   _InterlockedExchangeAdd((volatile long*)_Ptr, _Add)
+#define xpfAtomicAdd64(_Ptr, _Add) _InterlockedExchangeAdd64((volatile __int64*)_Ptr, _Add)
 
 
 // Atomic OR: Returns the value before OR.
 //  Ex:
 //     xpf::s32 val, mask = 0xf0f0f0f0;
 //     xpf::s32 old = xpfAtomicOr(&val, mask);
-#define xpfAtomicOr(_Val, _Add)   _InterlockedOr((volatile long*)_Val, _Add)
-#define xpfAtomicOr8(_Val, _Add)  _InterlockedOr8((volatile char*)_Val, _Add)
-#define xpfAtomicOr16(_Val, _Add) _InterlockedOr16((volatile short*)_Val, _Add)
-#define xpfAtomicOr64(_Val, _Add) _InterlockedOr64((volatile __int64*)_Val, _Add)
+#define xpfAtomicOr(_Ptr, _Mask)   _InterlockedOr((volatile long*)_Ptr, _Mask)
+#define xpfAtomicOr8(_Ptr, _Mask)  _InterlockedOr8((volatile char*)_Ptr, _Mask)
+#define xpfAtomicOr16(_Ptr, _Mask) _InterlockedOr16((volatile short*)_Ptr, _Mask)
+#define xpfAtomicOr64(_Ptr, _Mask) _InterlockedOr64((volatile __int64*)_Ptr, _Mask)
 
 
 // Atomic AND: Returns the value before AND.
 //  Ex:
 //     xpf::s32 val, mask = 0xf0f0f0f0;
 //     xpf::s32 old = xpfAtomicAnd(&val, mask);
-#define xpfAtomicAnd(_Val, _Add)   _InterlockedAnd((volatile long*)_Val, _Add)
-#define xpfAtomicAnd8(_Val, _Add)  _InterlockedAnd8((volatile char*)_Val, _Add)
-#define xpfAtomicAnd16(_Val, _Add) _InterlockedAnd16((volatile short*)_Val, _Add)
-#define xpfAtomicAnd64(_Val, _Add) _InterlockedAnd64((volatile __int64*)_Val, _Add)
+#define xpfAtomicAnd(_Ptr, _Mask)   _InterlockedAnd((volatile long*)_Ptr, _Mask)
+#define xpfAtomicAnd8(_Ptr, _Mask)  _InterlockedAnd8((volatile char*)_Ptr, _Mask)
+#define xpfAtomicAnd16(_Ptr, _Mask) _InterlockedAnd16((volatile short*)_Ptr, _Mask)
+#define xpfAtomicAnd64(_Ptr, _Mask) _InterlockedAnd64((volatile __int64*)_Ptr, _Mask)
 
 
 // Atomic XOR: Returns the value before XOR.
 //  Ex:
 //     xpf::s32 val, mask = 0xf0f0f0f0;
 //     xpf::s32 old = xpfAtomicXor(&val, mask);
-#define xpfAtomicXor(_Val, _Add)   _InterlockedXor((volatile long*)_Val, _Add)
-#define xpfAtomicXor8(_Val, _Add)  _InterlockedXor8((volatile char*)_Val, _Add)
-#define xpfAtomicXor16(_Val, _Add) _InterlockedXor16((volatile short*)_Val, _Add)
-#define xpfAtomicXor64(_Val, _Add) _InterlockedXor64((volatile __int64*)_Val, _Add)
+#define xpfAtomicXor(_Ptr, _Mask)   _InterlockedXor((volatile long*)_Ptr, _Mask)
+#define xpfAtomicXor8(_Ptr, _Mask)  _InterlockedXor8((volatile char*)_Ptr, _Mask)
+#define xpfAtomicXor16(_Ptr, _Mask) _InterlockedXor16((volatile short*)_Ptr, _Mask)
+#define xpfAtomicXor64(_Ptr, _Mask) _InterlockedXor64((volatile __int64*)_Ptr, _Mask)
 
 
-// Atomic Compare-and-swap operation (CAS): Compare the value pointed by '_dest' to '_comperand'.
-//                                          If equal, swap the value to be '_exchange'.
-//                                          Return the initial value store in '_dest' BEFORE the operation.
-#define xpfAtomicCAS(_dest, _comperand, _exchange)   _InterlockedCompareExchange((volatile long*)_dest, _exchange, _comperand)
-#define xpfAtomicCAS16(_dest, _comperand, _exchange) _InterlockedCompareExchange16((volatile short*)_dest, _exchange, _comperand)
-#define xpfAtomicCAS64(_dest, _comperand, _exchange) _InterlockedCompareExchange64((volatile __int64*)_dest, _exchange, _comperand)
+// Atomic Compare-and-swap operation (CAS): Compare the value pointed by '_Dest' to '_Comperand'.
+//                                          If equal, swap the value to be '_Exchange'.
+//                                          Return the initial value store in '_Dest' BEFORE the operation.
+#define xpfAtomicCAS(_Dest, _Comperand, _Exchange)   _InterlockedCompareExchange((volatile long*)_Dest, _Exchange, _Comperand)
+#define xpfAtomicCAS16(_Dest, _Comperand, _Exchange) _InterlockedCompareExchange16((volatile short*)_Dest, _Exchange, _Comperand)
+#define xpfAtomicCAS64(_Dest, _Comperand, _Exchange) _InterlockedCompareExchange64((volatile __int64*)_Dest, _Exchange, _Comperand)
 
 
 #elif defined(XPF_COMPILER_GNUC)
@@ -88,45 +88,45 @@
 //  Ex:
 //     xpf::s32 val, addend = 10;
 //     xpf::s32 old = xpfAtomicAdd(&val, addend);
-#define xpfAtomicAdd   __sync_fetch_and_add
-#define xpfAtomicAdd64 __sync_fetch_and_add
+#define xpfAtomicAdd(_Ptr, _Add)   __sync_fetch_and_add(_Ptr, _Add)
+#define xpfAtomicAdd64(_Ptr, _Add) __sync_fetch_and_add(_Ptr, _Add)
 
 
 // Atomic OR: Returns the value before OR.
 //  Ex:
 //     xpf::s32 val, mask = 0xf0f0f0f0;
 //     xpf::s32 old = xpfAtomicOr(&val, mask);
-#define xpfAtomicOr   __sync_fetch_and_or
-#define xpfAtomicOr8  __sync_fetch_and_or
-#define xpfAtomicOr16 __sync_fetch_and_or
-#define xpfAtomicOr64 __sync_fetch_and_or
+#define xpfAtomicOr(_Ptr, _Mask)   __sync_fetch_and_or(_Ptr, _Mask)
+#define xpfAtomicOr8(_Ptr, _Mask)  __sync_fetch_and_or(_Ptr, _Mask)
+#define xpfAtomicOr16(_Ptr, _Mask) __sync_fetch_and_or(_Ptr, _Mask)
+#define xpfAtomicOr64(_Ptr, _Mask) __sync_fetch_and_or(_Ptr, _Mask)
 
 // Atomic AND: Returns the value before AND.
 //  Ex:
 //     xpf::s32 val, mask = 0xf0f0f0f0;
 //     xpf::s32 old = xpfAtomicAnd(&val, mask);
-#define xpfAtomicAnd   __sync_fetch_and_and
-#define xpfAtomicAnd8  __sync_fetch_and_and
-#define xpfAtomicAnd16 __sync_fetch_and_and
-#define xpfAtomicAnd64 __sync_fetch_and_and
+#define xpfAtomicAnd(_Ptr, _Mask)   __sync_fetch_and_and(_Ptr, _Mask)
+#define xpfAtomicAnd8(_Ptr, _Mask)  __sync_fetch_and_and(_Ptr, _Mask)
+#define xpfAtomicAnd16(_Ptr, _Mask) __sync_fetch_and_and(_Ptr, _Mask)
+#define xpfAtomicAnd64(_Ptr, _Mask) __sync_fetch_and_and(_Ptr, _Mask)
 
 
 // Atomic XOR: Returns the value before XOR.
 //  Ex:
 //     xpf::s32 val, mask = 0xf0f0f0f0;
 //     xpf::s32 old = xpfAtomicXor(&val, mask);
-#define xpfAtomicXor   __sync_fetch_and_xor
-#define xpfAtomicXor8  __sync_fetch_and_xor
-#define xpfAtomicXor16 __sync_fetch_and_xor
-#define xpfAtomicXor64 __sync_fetch_and_xor
+#define xpfAtomicXor(_Ptr, _Mask)   __sync_fetch_and_xor(_Ptr, _Mask)
+#define xpfAtomicXor8(_Ptr, _Mask)  __sync_fetch_and_xor(_Ptr, _Mask)
+#define xpfAtomicXor16(_Ptr, _Mask) __sync_fetch_and_xor(_Ptr, _Mask)
+#define xpfAtomicXor64(_Ptr, _Mask) __sync_fetch_and_xor(_Ptr, _Mask)
 
 
-// Atomic Compare-and-swap operation (CAS): Compare the value pointed by '_dest' to '_comperand'.
-//                                          If equal, swap the value to be '_exchange'.
-//                                          Return the initial value store in '_dest' BEFORE the operation.
-#define xpfAtomicCAS(_dest, _comperand, _exchange)   __sync_val_compare_and_swap(_dest, _comperand, _exchange)
-#define xpfAtomicCAS16(_dest, _comperand, _exchange) __sync_val_compare_and_swap(_dest, _comperand, _exchange)
-#define xpfAtomicCAS64(_dest, _comperand, _exchange) __sync_val_compare_and_swap(_dest, _comperand, _exchange)
+// Atomic Compare-and-swap operation (CAS): Compare the value pointed by '_Dest' to '_Comperand'.
+//                                          If equal, swap the value to be '_Exchange'.
+//                                          Return the initial value store in '_Dest' BEFORE the operation.
+#define xpfAtomicCAS(_Dest, _Comperand, _Exchange)   __sync_val_compare_and_swap(_Dest, _Comperand, _Exchange)
+#define xpfAtomicCAS16(_Dest, _Comperand, _Exchange) __sync_val_compare_and_swap(_Dest, _Comperand, _Exchange)
+#define xpfAtomicCAS64(_Dest, _Comperand, _Exchange) __sync_val_compare_and_swap(_Dest, _Comperand, _Exchange)
 
 
 #else
