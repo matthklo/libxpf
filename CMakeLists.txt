@@ -25,4 +25,6 @@ ADD_SUBDIRECTORY("./tests/threading")
 ADD_SUBDIRECTORY("./tests/atomicops")
 ADD_SUBDIRECTORY("./tests/string")
 ADD_SUBDIRECTORY("./tests/delegate")
+ADD_SUBDIRECTORY("./tests/allocators")
+
 

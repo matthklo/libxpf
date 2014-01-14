@@ -150,7 +150,10 @@ public:
 	pointer allocate ( size_type n, void* hint = 0 )
 	{
 		xpfAssert(mPool != 0);
-		return (pointer) mPool->alloc(n * sizeof(value_type));
+		pointer ptr = (pointer) mPool->alloc(n * sizeof(value_type));
+		if (NULL == ptr)
+			throw std::bad_alloc;
+		return ptr;
 	}
 
 	void deallocate ( pointer p, size_type n )

@@ -74,7 +74,7 @@ public:
 			if ( xpfUnlikely (maxSize == Capacity) )
 				break;
 		}
-		FlagsLen = (1 << ((TierNum <= 3) ? 0 : (TierNum - 3)));
+		FlagsLen = (1 << ((TierNum <= 3) ? 0 : (TierNum - 3))); // about 1/64 size of Capacity.
 
 		Chunk         = (char*)             ::malloc(sizeof(char) * Capacity);
 		Flags         = (char*)             ::malloc(sizeof(char) * FlagsLen);
@@ -99,17 +99,11 @@ public:
 	{
 		const u32 tier = tierOf(size);
 		if ( xpfUnlikely(INVALID_VALUE == tier) )
-		{
-			throw std::bad_alloc();
 			return NULL;
-		}
 
 		const u32 blockId = obtain(tier);
 		if ( xpfUnlikely (INVALID_VALUE == blockId) )
-		{
-			throw std::bad_alloc();
 			return NULL;
-		}
 
 		return (void*)(Chunk + (blockId * blockSizeOf(tier)));
 	}
@@ -149,14 +143,9 @@ public:
 
 			// boundary cases
 			if ((0 == tier) && (size > blockSize))
-			{
-				throw std::bad_alloc();
 				return 0;
-			}
 			if (((TierNum-1) == tier) && (size <= blockSize))
-			{
 				return p;
-			}
 
 			// The new size is large than the current block size, 
 			// promote to a bigger block.
@@ -199,10 +188,14 @@ private:
 		// 1. Check if there is any free block available in given tier, 
 		//    return one of them if does.
 		FreeBlockRecord *fbr = FreeChainHead[tier];
-		if (fbr)
+		if (NULL != fbr)
 		{
 			const u32 blockSize = blockSizeOf(tier);
 			const u32 blockId = ((char*)fbr - Chunk)/blockSize;
+
+			//debug
+			xpfAssert(isBlockInUse(tier, blockId) == false);
+
 			FreeChainHead[tier] = fbr->Next;
 			setBlockInUse(tier, blockId, true);
 			return blockId;
@@ -229,8 +222,7 @@ private:
 	void recycle( const u32 tier, const u32 blockId)
 	{
 		// 1. Validate the in-use bit of given block.
-		if (!isBlockInUse(tier, blockId))
-			return;
+		xpfAssert(isBlockInUse(tier, blockId) == true);
 		setBlockInUse(tier, blockId, false);
 
 		// 2. Check the status of its buddy block. 
@@ -245,7 +237,10 @@ private:
 			// Setup FreeBlockRecord and push to free chain
 			FreeBlockRecord * fbr = (FreeBlockRecord*)(Chunk + (blockSize * (blockId + 1)) - sizeof(FreeBlockRecord));
 			if (FreeChainHead[tier])
+			{
+				xpfAssert(FreeChainHead[tier]->Prev == NULL);
 				FreeChainHead[tier]->Prev = fbr;
+			}
 			fbr->Next = FreeChainHead[tier];
 			fbr->Prev = NULL;
 			FreeChainHead[tier] = fbr;
