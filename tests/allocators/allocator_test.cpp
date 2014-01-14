@@ -27,20 +27,26 @@
 #include <stdio.h>
 #include <deque>
 
+#ifdef XPF_PLATFORM_WINDOWS
+#include <Windows.h>
+#endif
+
 using namespace xpf;
 
 struct MemObj
 {
-	MemObj(void * p)
-		: pattern(0), ptr(p), size(0) {}
+	MemObj(void * p, u32 s)
+		: pattern(0), ptr(p), size(s) {}
 
-	void provision(u32 pt, u32 s)
+	void provision(u32 pt)
 	{
 		pattern = pt;
-		size = s;
 
-		u32 cnt = size/sizeof(u32);
+		u32 cnt = size/sizeof(u32) - 2;
 		u32 *ppp = (u32*)ptr;
+		xpfAssert((*ppp != 0x52995299) || (*(ppp+1) != 0x99259925));
+		*ppp = 0x52995299; ppp++;
+		*ppp = 0x99259925; ppp++;
 		while(cnt--)
 		{
 			*ppp = pattern;
@@ -50,8 +56,16 @@ struct MemObj
 
 	bool validate()
 	{
-		u32 cnt = size/sizeof(u32);
 		u32 *ppp = (u32*)ptr;
+		if (*ppp != 0x52995299)
+			return false;
+		*ppp = 0;
+		ppp++;
+		if (*ppp != 0x99259925)
+			return false;
+		*ppp = 0;
+		ppp++;
+		u32 cnt = size/sizeof(u32) - 2;
 		while(cnt--)
 		{
 			if ((*ppp) != pattern)
@@ -77,20 +91,22 @@ struct Bank
 	std::deque<MemObj> objs;
 };
 
-bool sanity()
+bool _g_sanity = true;
+
+bool test(bool sysalloc = false)
 {
-	MemoryPool *pool = MemoryPool::instance();
+	MemoryPool *pool = (sysalloc)? 0: MemoryPool::instance();
 
 	Bank profile[] =
 	{
 		Bank((1<<24), 2),    // 16mb * 2 = 32mb
 		Bank((1<<23), 4),    //  8mb * 4 = 32mb
 		Bank((1<<21), 16),   //  2mb *16 = 32mb
-		Bank((1<<12), 1024), //  4kb *1024 = 4mb
-		Bank((1<<7), (1<<15)),  // 128b * 2^15 = 4mb
+		Bank((1<<12), 2048), //  4kb *2048 = 8mb
+		Bank((1<<7), (1<<16)),  // 128b * 2^16 = 8mb
 	};
 
-	int probs[] = { 2, 6, 22, 1046, 33814, 0 };
+	int probs[] = { 2, 6, 22, 2070, 67606, 0 };
 	
 	int randomCnt = 0;
 	int opCnt = 1000;
@@ -116,14 +132,14 @@ bool sanity()
 			randomCnt++;
 			if (randomCnt >= 1000)
 			{
-				printf("Enqueue 500 allocs after 1000 random ops.\n");
+				if (_g_sanity) printf("Enqueue 500 allocs after 1000 random ops.\n");
 				op = true;
 				opCnt = 500;
 				randomCnt = 0;
 			}
 		}
 
-		int p = (rand() % 33814);
+		int p = (rand() % 67606);
 		int i = 0;
 		for (; probs[i] !=0; ++i)
 		{
@@ -136,15 +152,15 @@ bool sanity()
 		{
 			if (b.number == 0)
 			{
-				printf("Alloc: MemObj of size %u run out of quota.\n", b.size);
+				if (_g_sanity) printf("Alloc: MemObj of size %u run out of quota.\n", b.size);
 				falseOp++;
 			}
 			else
 			{
-				void * ptr = pool->alloc(b.size);
+				void * ptr = (sysalloc)? malloc(b.size): pool->alloc(b.size);
 				if (NULL == ptr)
 				{
-					printf("Alloc: MemoryPool failed to allocate MemObj of size %u. (liveBytes = %u, liveObjs = %u).\n", b.size, liveBytes, liveObjs);
+					if (_g_sanity) printf("Alloc: MemoryPool failed to allocate MemObj of size %u. (liveBytes = %u, liveObjs = %u).\n", b.size, liveBytes, liveObjs);
 					op = false;
 					opCnt = 2000;
 					randomCnt = 0;
@@ -153,8 +169,10 @@ bool sanity()
 				else
 				{
 					b.number--;
-					b.objs.push_back(MemObj(ptr));
-					b.objs.back().provision((u32)rand(), b.size);
+					b.objs.push_back(MemObj(ptr, b.size));
+					u32 pt = (u32)rand();
+					if (_g_sanity)
+						b.objs.back().provision(pt);
 					liveObjs++;
 					liveBytes += b.size;
 				}
@@ -164,19 +182,31 @@ bool sanity()
 		{
 			if (b.objs.empty())
 			{
-				printf("Dealloc: No more live MemObj of size %u.\n", b.size);
+				if (_g_sanity) printf("Dealloc: No more live MemObj of size %u.\n", b.size);
 				falseOp++;
 			}
 			else
 			{
 				MemObj &obj = b.objs.front();
-				if (!obj.validate())
-					return false;
 
-				//if (rand()%2)
-					pool->dealloc(obj.ptr, obj.size);
-				//else
-					//pool->free(obj.ptr);
+				if (_g_sanity)
+				{
+					if (!obj.validate())
+						return false;
+				}
+
+				bool useDealloc = rand()%2;
+				if (sysalloc)
+				{
+					free(obj.ptr);
+				}
+				else
+				{
+					//if (useDealloc)
+						pool->dealloc(obj.ptr, obj.size);
+					//else
+						//pool->free(obj.ptr);
+				}
 
 				b.objs.pop_front();
 				b.number++;
@@ -186,28 +216,59 @@ bool sanity()
 			}
 		}
 
-		if (totalCnt%1000 == 0)
+		if (_g_sanity && (totalCnt%1000 == 0))
 		{
-			printf("Sanity: liveBytes = %u, liveObjs = %u, falseOp = %u, falseAlloc = %u\n", liveBytes, liveObjs, falseOp, falseAlloc);
+			printf("Test: liveBytes = %u, liveObjs = %u, falseOp = %u, falseAlloc = %u\n", liveBytes, liveObjs, falseOp, falseAlloc);
 		}
 
 	} // while (totalCnt--)
+
+	printf("Test: liveBytes = %u, liveObjs = %u, falseOp = %u, falseAlloc = %u\n", liveBytes, liveObjs, falseOp, falseAlloc);
 
 	return true;
 }
 
 int main()
 {
-	srand((unsigned int)time(NULL));
+	unsigned int seed = (unsigned int)time(NULL);
+	srand(seed);
 
 	u32 poolSize = (1 << 27); //128mb
 	u32 size = MemoryPool::create(poolSize);
 	xpfAssert(0 != size);
 
 
-	bool ret = sanity();
+	bool ret = test();
 	xpfAssert(ret);
-
 	MemoryPool::destory();
+
+	printf("\n====Benchmark====\n");
+
+	size = MemoryPool::create(poolSize);
+	xpfAssert(0 != size);
+	_g_sanity = false;
+#ifdef XPF_PLATFORM_WINDOWS
+	srand(seed);
+
+	LARGE_INTEGER freq, cnt1, cnt2;
+	QueryPerformanceFrequency(&freq);
+	QueryPerformanceCounter(&cnt1);
+	test();
+	QueryPerformanceCounter(&cnt2);
+	double timeCost1 = (double)(cnt2.QuadPart - cnt1.QuadPart) / (double)freq.QuadPart;
+	printf("Time cost of buddy = %f secs\n", timeCost1);
+	MemoryPool::destory();
+
+	srand(seed);
+	QueryPerformanceCounter(&cnt1);
+	test(true);
+	QueryPerformanceCounter(&cnt2);
+	double timeCost2 = (double)(cnt2.QuadPart - cnt1.QuadPart) / (double)freq.QuadPart;
+	printf("Time cost of sysalloc = %f secs\n", timeCost2);
+
+	printf("Improved: %f%%\n", (timeCost2 - timeCost1)*100.00/timeCost2);
+#endif
+
+	
 	return 0;
 }

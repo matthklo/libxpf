@@ -193,10 +193,12 @@ private:
 			const u32 blockSize = blockSizeOf(tier);
 			const u32 blockId = ((char*)fbr - Chunk)/blockSize;
 
-			//debug
-			xpfAssert(isBlockInUse(tier, blockId) == false);
-
 			FreeChainHead[tier] = fbr->Next;
+			if (fbr->Next)
+			{
+				fbr->Next->Prev = NULL;
+			}
+
 			setBlockInUse(tier, blockId, true);
 			return blockId;
 		}
@@ -222,7 +224,6 @@ private:
 	void recycle( const u32 tier, const u32 blockId)
 	{
 		// 1. Validate the in-use bit of given block.
-		xpfAssert(isBlockInUse(tier, blockId) == true);
 		setBlockInUse(tier, blockId, false);
 
 		// 2. Check the status of its buddy block. 
@@ -238,7 +239,6 @@ private:
 			FreeBlockRecord * fbr = (FreeBlockRecord*)(Chunk + (blockSize * (blockId + 1)) - sizeof(FreeBlockRecord));
 			if (FreeChainHead[tier])
 			{
-				xpfAssert(FreeChainHead[tier]->Prev == NULL);
 				FreeChainHead[tier]->Prev = fbr;
 			}
 			fbr->Next = FreeChainHead[tier];
