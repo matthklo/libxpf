@@ -22,251 +22,454 @@
  ********************************************************************************/
 
 #include <xpf/allocators.h>
-#include <memory>
-#include <set>
+#include <stdlib.h>
+#include <string.h>
 
-#define DEBUG_MEMORY_POOL
-#define SMALLEST_CELL_POW (4)
+#define MINSIZE_POWOF2 (4)
+#define MAXSIZE_POWOF2 (31)
+#define INVALID_VALUE  (0xFFFFFFFF)
 
 namespace xpf {
 
+static MemoryPool* _global_pool_instance = 0;
 
-static u32 _NearsetTier ( const u32 v )
-{
-	u32 i = (0x1 << SMALLEST_CELL_POW);
-	u32 t = 0;
-
-	if ( xpfUnlikely (v > 0x80000000) )
-		return -1L;
-
-	while ( xpfLikely (i < v) )
-	{
-		i <<= 1;
-		t++;
-	}
-	return t;
-}
-
-static u32 _GetBuddy ( const u32 v )
-{
-	if ( 1 == (v & 0x1) )
-	{
-		return v-1;
-	}
-	else
-	{
-		return v+1;
-	}
-}
-
-struct MemoryPoolTier;
+/****************************************************************************
+ * A memory pool implementation based on Buddy memory allocation algorithm
+ * http://en.wikipedia.org/wiki/Buddy_memory_allocation
+ ****************************************************************************/
 
 struct MemoryPoolDetails
 {
-	u32		         Capacity;
-	char*	         Chunk;
+private:
+	struct FreeBlockRecord;
 
-	u32              MaxPowOf2;
-	u32              TierNum;
-	MemoryPoolTier  *Tiers;
-
-	static MemoryPool* Instance;
-};
-
-struct MemoryPoolTier
-{
-	typedef std::set<u32> CellSet;
-
-	MemoryPoolTier() { }
-	~MemoryPoolTier() { }
-
-	void provision ( u32 index, u32 powof2, MemoryPoolDetails *details )
+	// The element type used for the linked-list of free blocks.
+	// Since we store this data structure inside each of free block, 
+	// it is crucial to make sure that sizeof(FreeBlockRecord) is 
+	// always smaller then the smallest-possible block size 
+	// (1 << MINSIZE_POWOF2 bytes).
+	struct FreeBlockRecord
 	{
-		Details = details;
-		Index = index;
-		PowOf2 = powof2;
-		CellSize = ( 0x1 << PowOf2 );
+		FreeBlockRecord *Prev;
+		FreeBlockRecord *Next;
+	};
 
-		// If this is the toppest tier, the cell #0, the only cell in this tier,
-		// should be marked as free.
-		if ( xpfUnlikely (PowOf2 == Details->MaxPowOf2) )
+public:
+	explicit MemoryPoolDetails( u32 size )
+		: TierNum(1)
+		, Capacity(1 << MINSIZE_POWOF2)
+	{
+		// Static assert which make sure the size of FreeBlockRecord 
+		// is less or equal to smallest possible block size.
+		// If compiler nag anything about this line, the assumption
+		// probably doesn't hold.
+		xpfSAssert((sizeof(FreeBlockRecord) <= (1<<MINSIZE_POWOF2)));
+
+		const u32 maxSize = (1 << MAXSIZE_POWOF2);
+
+		while ( xpfLikely (Capacity < size) )
 		{
-			FreeCells.insert(0);
+			Capacity <<= 1;
+			++TierNum;
+			if ( xpfUnlikely (maxSize == Capacity) )
+				break;
 		}
+		FlagsLen = (1 << ((TierNum <= 3) ? 0 : (TierNum - 3)));
+
+		Chunk         = (char*)             ::malloc(sizeof(char) * Capacity);
+		Flags         = (char*)             ::malloc(sizeof(char) * FlagsLen);
+		FreeChainHead = (FreeBlockRecord**) ::malloc(sizeof(FreeBlockRecord*) * TierNum);
+
+		::memset(Flags, 0, sizeof(char) * FlagsLen);
+		::memset(FreeChainHead, 0, sizeof(FreeBlockRecord*) * TierNum);
+
+		// make sure the top-most tier places its only block in its free chain.
+		setBlockInUse(0, 0, true);
+		recycle(0, 0);
 	}
 
-	// Allocate a cell of this tier, return the starting address of the cell.
-	// Return NULL is out of space.
-	void* alloc()
+	~MemoryPoolDetails()
 	{
-		u32 cell = obtain();
-		if ( xpfLikely (-1L != cell) )
+		::free(Chunk);
+		::free(Flags);
+		::free(FreeChainHead);
+	}
+
+	void* alloc ( const u32 size )
+	{
+		const u32 tier = tierOf(size);
+		if ( xpfUnlikely(INVALID_VALUE == tier) )
 		{
-			return (void*)(Details->Chunk + (cell * CellSize));
-		}
-		throw std::bad_alloc();
-		return NULL;
-	}
-
-	void dealloc( void *p )
-	{
-		u32 cell = ((char*)p - Details->Chunk)/CellSize;
-		recycle(cell);
-	}
-
-	u32 obtain ()
-	{
-		// If free cells of current tier runs out, request more from upper tier.
-		if ( xpfUnlikely (FreeCells.empty()) )
-		{
-			// Can not do anything if current tier is the toppest tier.
-			if ( xpfUnlikely ( PowOf2 >= Details->MaxPowOf2 ) )
-			{
-				return -1L;
-			}
-			
-			u32 upperCell = Details->Tiers[Index+1].obtain();
-			if ( xpfUnlikely ( -1L == upperCell ) )
-			{
-				// no more free cells from upper tier.
-				return -1L;
-			}
-
-			u32 obtainedCell = (upperCell << 1);
-			UsedCells.insert(obtainedCell);
-			FreeCells.insert(obtainedCell + 1);
-			return obtainedCell;
+			throw std::bad_alloc();
+			return NULL;
 		}
 
-		u32 cell = *(FreeCells.begin());
-		FreeCells.erase(FreeCells.begin());
-		UsedCells.insert(cell);
-		return cell;
+		const u32 blockId = obtain(tier);
+		if ( xpfUnlikely (INVALID_VALUE == blockId) )
+		{
+			throw std::bad_alloc();
+			return NULL;
+		}
+
+		return (void*)(Chunk + (blockId * blockSizeOf(tier)));
 	}
 
-	void recycle ( u32 cell )
+	// Return the allocated block with size hint.
+	void dealloc ( void *p, const u32 size )
 	{
-		u32 cnt = UsedCells.erase(cell);
-		if ( xpfUnlikely( 0 == cnt ))
-		{
-			xpfAssert(false);
+		const u32 tier = tierOf(size);
+		if ( xpfUnlikely(INVALID_VALUE == tier) )
 			return;
-		}
 
-		// For all tiers which is not the toppest, apply buddy check
-		if ( xpfLikely (PowOf2 < Details->MaxPowOf2) )
-		{
-			u32 buddyCell = _GetBuddy(cell);
-			cnt = FreeCells.erase(buddyCell);
-			if ( xpfUnlikely (cnt > 0))
-			{
-				// merge them and give it back to upper tier.
-				Details->Tiers[Index+1].recycle((cell >> 1));
-				return;
-			}
-		}
-		
-		FreeCells.insert(cell);
+		const u32 blockId = blockIdOf(tier, p);
+		if ( xpfLikely ( blockId != INVALID_VALUE ) )
+			recycle(tier, blockId);
 	}
 
-	u32     Index;
-	u32     PowOf2;
-	u32     CellSize; // cell size of this tier = 2^PowOf2. 
-	CellSet FreeCells;
-	CellSet UsedCells;
+	// dealloc() without size hint.
+	void free ( void *p )
+	{
+		u32 tier, blockId;
+		if (locateBlockInUse(p, tier, blockId))
+		{
+			recycle(tier, blockId);
+		}
+	}
 
-	MemoryPoolDetails *Details;
+	// Change the size of allocated block pointed by p.
+	// May move the memory block to a new location (whose addr will be returned).
+	// The content of the memory block is preserved up to the lesser of the new and old sizes.
+	// Return NULL on error, in which case the memory content will not be touched.
+	void* realloc ( void *p, const u32 size )
+	{
+		u32 tier, blockId;
+		if (locateBlockInUse(p, tier, blockId))
+		{
+			const u32 blockSize = blockSizeOf(tier);
+
+			// boundary cases
+			if ((0 == tier) && (size > blockSize))
+			{
+				throw std::bad_alloc();
+				return 0;
+			}
+			if (((TierNum-1) == tier) && (size <= blockSize))
+			{
+				return p;
+			}
+
+			// The new size is large than the current block size, 
+			// promote to a bigger block.
+			if (size > blockSize)
+			{
+				void * b = alloc(size);
+				if (NULL != b)
+				{
+					::memcpy(b, p, blockSize);
+					dealloc(p, blockSize);
+				}
+				return b;
+			}
+
+			// The new size is less-or-equal to half of the current 
+			// block size, demote to a smaller block.
+			if (size <= (blockSize >> 1))
+			{
+				void * b = alloc(size);
+				if (NULL != b)
+				{
+					::memcpy(b, p, size);
+					dealloc(p, blockSize);
+				}
+				return b;
+			}
+
+			// Current block is still suitable for the new size, so nothing changes.
+			return p;
+		}
+		return 0;
+	}
+
+	inline u32 capacity() const { return Capacity; }
+
+private:
+
+	u32 obtain( const u32 tier )
+	{
+		// 1. Check if there is any free block available in given tier, 
+		//    return one of them if does.
+		FreeBlockRecord *fbr = FreeChainHead[tier];
+		if (fbr)
+		{
+			const u32 blockSize = blockSizeOf(tier);
+			const u32 blockId = ((char*)fbr - Chunk)/blockSize;
+			FreeChainHead[tier] = fbr->Next;
+			setBlockInUse(tier, blockId, true);
+			return blockId;
+		}
+
+		// 2. Ask the upper tier to split one of its free block to two smaller 
+		//    blocks to join given tier. Return one of them for use and push
+		//    another in the free block chain of current tier.
+		const u32 upperBlockId = (tier > 0)? obtain(tier-1) : INVALID_VALUE;
+		if (INVALID_VALUE != upperBlockId)
+		{
+			const u32 blockId1 = (upperBlockId << 1);
+			const u32 blockId2 = blockId1 + 1;
+			setBlockInUse(tier, blockId1, true);
+			setBlockInUse(tier, blockId2, true);
+			recycle(tier, blockId2);
+			return blockId1;
+		}
+
+		// 3. No available free block, returns INVALID_VALUE.
+		return INVALID_VALUE;
+	}
+
+	void recycle( const u32 tier, const u32 blockId)
+	{
+		// 1. Validate the in-use bit of given block.
+		if (!isBlockInUse(tier, blockId))
+			return;
+		setBlockInUse(tier, blockId, false);
+
+		// 2. Check the status of its buddy block. 
+		const u32 buddyBlockId = buddyIdOf(blockId);
+		const u32 blockSize = blockSizeOf(tier);
+		if ((0 == tier) || (isBlockInUse(tier, buddyBlockId)))
+		{
+			// 2a. The buddy block is currently in-use, so we just
+			//     clear the in-use bit of the recycling block and
+			//     push it to the free block chain of current tier.
+
+			// Setup FreeBlockRecord and push to free chain
+			FreeBlockRecord * fbr = (FreeBlockRecord*)(Chunk + (blockSize * (blockId + 1)) - sizeof(FreeBlockRecord));
+			if (FreeChainHead[tier])
+				FreeChainHead[tier]->Prev = fbr;
+			fbr->Next = FreeChainHead[tier];
+			fbr->Prev = NULL;
+			FreeChainHead[tier] = fbr;
+		}
+		else
+		{
+			// 2b. The buddy block is also free, remove buddy block 
+			//     from the free block chain and return these 2 blocks
+			//     back to upper tier.
+
+			FreeBlockRecord * fbr = (FreeBlockRecord*)(Chunk + (blockSize * (buddyBlockId + 1)) - sizeof(FreeBlockRecord));
+			if (fbr->Prev)
+			{
+				fbr->Prev->Next = fbr->Next;
+			}
+			if (fbr->Next)
+			{
+				fbr->Next->Prev = fbr->Prev;
+			}
+			if (fbr == FreeChainHead[tier])
+			{
+				FreeChainHead[tier] = (fbr->Prev)? fbr->Prev: fbr->Next;
+			}
+
+			recycle(tier-1, (blockId >> 1));
+		}
+	}
+
+	inline bool isValidPtr ( void *p ) const
+	{
+		if ( xpfUnlikely ((char*)p < Chunk) )
+			return false;
+
+		const u32 offset = (u32)((char*)p - Chunk);
+		if ( xpfUnlikely (offset >= Capacity) )
+			return false;
+
+		return (offset == (offset & (1 << MINSIZE_POWOF2))); // if it aligns to minimal block size.
+	}
+
+	// Input: A pointer to an allocated block and its tier index.
+	// Return: A pointer to its buddy block on the same tier. Or NULL on error.
+	inline void* buddyAddrOf( const u32 tier, void *p )
+	{
+		if ( xpfUnlikely (isValidPtr(p)) )
+			return NULL;
+
+		const u32 offset = (u32)((char*)p - Chunk);
+		return (void*)(Chunk + (offset ^ blockSizeOf(tier)));
+	}
+
+	// Input: Block id of any tier.
+	// Return: The block id of its buddy on the same tier.
+	inline u32 buddyIdOf( const u32 blockId ) const
+	{
+		return (blockId ^ 0x1);
+	}
+
+	// Input: A pointer to an allocated block and its tier index.
+	// Return: The block id of the input block on that tier. Or INVALID_VALUE on error.
+	inline u32 blockIdOf( const u32 tier, void *p ) const
+	{
+		if ( xpfUnlikely (isValidPtr(p)) )
+			return INVALID_VALUE;
+
+		// Check if p aligns to the block size of given tier.
+		const u32 offset = (u32)((char*)p - Chunk);
+		const u32 mask = (0xFFFFFFFF << (MINSIZE_POWOF2 + TierNum - tier - 1));
+		if ( xpfUnlikely (offset != (offset & mask)) )
+			return INVALID_VALUE;
+
+		return (offset / blockSizeOf(tier));
+	}
+
+	// Return the block size of given tier.
+	inline u32 blockSizeOf( const u32 tier ) const
+	{
+		xpfAssert(tier < TierNum);
+		return (1 << (MINSIZE_POWOF2 + TierNum - tier - 1));
+	}
+
+	// Input: Block size.
+	// Return: The index of tier which deals with such block size.
+	inline u32 tierOf ( const u32 size ) const
+	{
+		u32 s = (1 << MINSIZE_POWOF2);
+		s32 t = TierNum - 1;
+		while (t >= 0)
+		{
+			if (size <= s)
+				break;
+			s <<= 1;
+			t--;
+		}
+
+		return (t >= 0)? (u32)t: INVALID_VALUE;
+	}
+
+	inline bool isBlockInUse(const u32 tier, const u32 blockId) const
+	{
+		xpfAssert(tier < TierNum);
+		const u32 idx = (1 << tier) + blockId;
+		const u32 offset = (idx >> 3);
+		const char mask = (1 << (idx & 0x7));
+		return (0 != (Flags[offset] & mask));
+	}
+
+	inline void setBlockInUse(const u32 tier, const u32 blockId, bool val)
+	{
+		xpfAssert(tier < TierNum);
+		const u32 idx = (1 << tier) + blockId;
+		const u32 offset = (idx >> 3);
+		const char mask = (1 << (idx & 0x7));
+		if (val)
+		{
+			Flags[offset] |= mask;
+		}
+		else
+		{
+			Flags[offset] &= (mask ^ 0xFF);
+		}
+	}
+
+	// Try to find out the blockId and tier index of a in-use block
+	// based on given pointer. Return true if found one with its tier
+	// index and block id stored in outTier and outBlockId. Return false
+	// on error.
+	bool locateBlockInUse( void *p, u32& outTier, u32& outBlockId ) const
+	{
+		bool ret = false;
+		u32 t = TierNum;
+		do
+		{
+			--t;
+			const u32 blockId = blockIdOf(t, p);
+			if (INVALID_VALUE == blockId)
+				break;
+
+			if (isBlockInUse(t, blockId))
+			{
+				outTier = t;
+				outBlockId = blockId;
+				ret = true;
+				break;
+			}
+		} while (0 != t);
+		return ret;
+	}
+
+	u32		          Capacity;
+	char*	          Chunk;
+	u32               FlagsLen;
+	char*             Flags;
+	u32               TierNum;
+	FreeBlockRecord** FreeChainHead;
 };
 
-MemoryPool* MemoryPoolDetails::Instance = 0;
+// *****************************************************************************
 
-MemoryPool::MemoryPool(u32 poolSize)
-	: mDetails(new MemoryPoolDetails)
+MemoryPool::MemoryPool(u32 size)
+	: mDetails(new MemoryPoolDetails(size))
 {
-	u32 s = 1024;
-	u32 t = 10;
-	while ( xpfLikely (s < poolSize) )
-	{
-		s <<= 1;
-		t++;
-		if ( xpfUnlikely (0x80000000 == s) )
-			break;
-	}
-	mDetails->Capacity = s;
 
-	std::allocator<char> alloc;
-	mDetails->Chunk = alloc.allocate(mDetails->Capacity);
-
-	// Prepare tiers
-	mDetails->MaxPowOf2 = t;
-	mDetails->TierNum = t - SMALLEST_CELL_POW + 1;
-	mDetails->Tiers = new MemoryPoolTier[mDetails->TierNum];
-	for (u32 pow=SMALLEST_CELL_POW; pow<=t; ++pow)
-	{
-		const u32 idx = pow - SMALLEST_CELL_POW;
-		MemoryPoolTier &tier = mDetails->Tiers[idx];
-		tier.provision(idx, pow, mDetails);
-	}
 }
 
 MemoryPool::~MemoryPool()
 {
-	std::allocator<char> alloc;
-	alloc.deallocate(mDetails->Chunk, mDetails->Capacity);
-
-	delete[] mDetails->Tiers;
-
-	delete mDetails;
-	mDetails = (MemoryPoolDetails*) 0xfefefefe;
+	if (mDetails)
+	{
+		delete mDetails;
+		mDetails = (MemoryPoolDetails*) 0xfefefefe;
+	}
 }
 
 u32 MemoryPool::capacity() const
 {
-	return mDetails->Capacity;
+	xpfAssert(mDetails != 0);
+	return mDetails->capacity();
 }
 
-void* MemoryPool::alloc ( u32 bytes )
+void* MemoryPool::alloc ( u32 size )
 {
-	// determine which tier we're dealing with
-	u32 tier = _NearsetTier( bytes );
-	if ( xpfUnlikely (-1L == tier) )
-	{
-		throw std::bad_alloc();
-		return NULL;
-	}
-
-	return mDetails->Tiers[tier].alloc();
+	xpfAssert(mDetails != 0);
+	return mDetails->alloc(size);
 }
 
-void MemoryPool::dealloc ( void *p, u32 bytes )
+void MemoryPool::dealloc ( void *p, u32 size )
 {
-	// determine which tier we're dealing with
-	u32 tier = _NearsetTier( bytes );
-	if ( xpfUnlikely (-1L == tier) )
-		return;
-
-	mDetails->Tiers[tier].dealloc(p);
+	xpfAssert(mDetails != 0);
+	mDetails->dealloc(p, size);
 }
 
-u32 MemoryPool::create( u32 poolSize )
+void MemoryPool::free ( void *p )
+{
+	xpfAssert(mDetails != 0);
+	mDetails->free(p);
+}
+
+void* MemoryPool::realloc ( void *p, u32 size )
+{
+	xpfAssert(mDetails != 0);
+	return mDetails->realloc(p, size);
+}
+
+u32 MemoryPool::create( u32 size )
 {
 	destory();
-	MemoryPoolDetails::Instance = new MemoryPool(poolSize);
-	return MemoryPoolDetails::Instance->capacity();
+	_global_pool_instance = new MemoryPool(size);
+	xpfAssert(_global_pool_instance != 0);
+	return (_global_pool_instance)? _global_pool_instance->capacity() : 0;
 }
 
 void MemoryPool::destory()
 {
-	if ( xpfLikely (MemoryPoolDetails::Instance != 0) )
+	if ( xpfLikely (_global_pool_instance != 0) )
 	{
-		delete MemoryPoolDetails::Instance;
-		MemoryPoolDetails::Instance = 0;
+		delete _global_pool_instance;
+		_global_pool_instance = 0;
 	}
 }
 
 MemoryPool* MemoryPool::instance()
 {
-	return MemoryPoolDetails::Instance;
+	return _global_pool_instance;
 }
 
 }; // end of namespace xpf

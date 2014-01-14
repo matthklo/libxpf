@@ -25,7 +25,6 @@
 #define _XPF_ALLOCATORS_HEADER_
 
 #include "platform.h"
-#include "refcnt.h"
 #include <memory>
 
 namespace xpf {
@@ -35,28 +34,63 @@ struct MemoryPoolDetails;
 class XPF_API MemoryPool
 {
 public:
-	static u32         create( u32 poolSize ); // in bytes. 1Kb ~ 2Gb
-	static void        destory();
+	/*****
+	 *  Initialize a global memory pool which pre-allocates a memory bulk 
+	 *  of length of 'size'. The 'size' must be power of 2 or it will be
+	 *  promoted to be one (nearest but not less than). The promoted size
+	 *  value should neither less than 2^4 (16 bytes) nor larger than 2^31
+	 *  (2 Gb). Later calls of MemoryPool::instance() returns the pointer
+	 *  to this global memory pool instance. One should call MemoryPool::
+	 *  destroy() after done using.
+	 *
+	 *  Returns the promoted memory pool size. Returns 0 on error.
+	 */
+	static u32  create( u32 size );
+
+	/*****
+	 *  Delete the global memory pool instance if ever created.
+	 */
+	static void destory();
+
+	/*****
+	 *  Return the pointer to the global accessable memory pool instance.
+	 *  Make sure the MemoryPool::create() has been called before or
+	 *  this returns 0 (NULL).
+	 */
 	static MemoryPool* instance();
 
 public:
+	explicit MemoryPool ( u32 size );
 	~MemoryPool();
 
+	// Returns the pool size in bytes.
 	u32   capacity () const;
-	void* alloc ( u32 bytes );
-	void  dealloc ( void *p, u32 bytes );
 
-protected:
-	explicit MemoryPool ( u32 poolSize ); 
+	// Allocate a memory chunk which is at least 'bytes' long.
+	// Our implementation guarantees the returned pointer is 
+	// aligned on 16-bytes boundary.
+	void* alloc ( u32 size );
+
+	// Free up a memory chunk which is previously allocated by this pool.
+	void  dealloc ( void *p, u32 size );
+
+	// dealloc() without size hint
+	void  free ( void *p );
+
+	// Extend or shrink the allocated block size.
+	// May move the memory block to a new location (whose addr will be returned).
+	// The content of the memory block is preserved up to the lesser of the new and old sizes.
+	void* realloc ( void *p, u32 size );
 
 private:
+	// non-copyable
 	MemoryPool ( const MemoryPool& other ) {}
 	MemoryPool& operator = ( const MemoryPool& other ) { return *this; }
 
 	MemoryPoolDetails *mDetails;
 };
 
-template < typename T >
+template < typename T, MemoryPool* INST = 0 >
 class MemoryPoolAllocator
 {
 public:
@@ -73,28 +107,34 @@ public:
 public:
 	MemoryPoolAllocator ()
 	{
+		mPool = (INST == 0)? MemoryPool::instance(): INST;
 	}
 
 	MemoryPoolAllocator ( const MemoryPoolAllocator& other )
 	{
+		mPool = other.mPool;
 	}
 
 	template < typename U >
 	MemoryPoolAllocator ( const MemoryPoolAllocator<U>& other )
 	{
+		mPool = other.mPool;
 	}
 
 	~MemoryPoolAllocator ()
 	{
+		mPool = 0;
 	}
 
 	MemoryPoolAllocator& operator = ( const MemoryPoolAllocator& other )
 	{
+		// DO NOT exchange mPool
 	}
 
 	template < typename U >
 	MemoryPoolAllocator& operator = ( const MemoryPoolAllocator<U>& other )
 	{
+		// DO NOT exchange mPool
 	}
 
 	pointer address ( reference x ) const
@@ -109,32 +149,38 @@ public:
 
 	pointer allocate ( size_type n, void* hint = 0 )
 	{
-		MemoryPool *mp = MemoryPool::instance();
-		return (pointer) mp->alloc(n * sizeof(value_type));
+		xpfAssert(mPool != 0);
+		return (pointer) mPool->alloc(n * sizeof(value_type));
 	}
 
 	void deallocate ( pointer p, size_type n )
 	{
-		MemoryPool *mp = MemoryPool::instance();
-		mp->dealloc( (void*) p, n * sizeof(value_type) );
+		xpfAssert(mPool != 0);
+		mPool->dealloc( (void*) p, n * sizeof(value_type) );
 	}
 
 	size_type max_size() const
 	{
-		MemoryPool *mp = MemoryPool::instance();
-		return (mp->capacity() / sizeof(value_type));
+		xpfAssert(mPool != 0);
+		return (mPool->capacity() / sizeof(value_type));
 	}
 
+	// Call the c'tor to construct object using the storage space passed in.
 	void construct ( pointer p, const_reference val )
 	{
 		new ((void*)p) value_type (val);
 	}
 
+	// Call the d'tor but not release the storage.
 	void destroy (pointer p)
 	{
 		p->~value_type();
 	}
-};
+
+private:
+	MemoryPool* mPool; // weak reference to a exists memory pool instance.
+
+}; // end of class MemoryPoolAllocator
 
 }; // end of namespace xpf
 

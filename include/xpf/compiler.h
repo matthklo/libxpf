@@ -168,8 +168,7 @@
 #endif
 
 // Supress unused local variable warning
-#define XPF_RESERVED(x) x
-
+#define XPF_NOTUSED(x) x
 
 
 //==========----------==========//

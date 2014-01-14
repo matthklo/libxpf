@@ -125,8 +125,13 @@
 #else
 #  if defined(__arm__)
 #    define XPF_CPU_ARM 1
-#    define XPF_MODEL_32 1
-#    define XPF_ARM_32 1
+#    if defined(__aarch64__)
+#      define XPF_MODEL_64 1
+#      define XPF_ARM_64 1
+#    else
+#      define XPF_MODEL_32 1
+#      define XPF_ARM_32 1
+#    endif
 #  elif defined(__x86_64) || defined(__amd64) || defined(__amd64__)
 #    define XPF_CPU_X86 1
 #    define XPF_MODEL_64 1
