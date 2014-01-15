@@ -29,9 +29,50 @@
 
 #ifdef XPF_PLATFORM_WINDOWS
 #include <Windows.h>
+#else
+#include <sys/time.h>
 #endif
 
 using namespace xpf;
+
+class StopWatch
+{
+public:
+	StopWatch()
+	{
+#ifdef XPF_PLATFORM_WINDOWS
+		QueryPerformanceFrequency(&Freq);
+		QueryPerformanceCounter(&Counter);
+#else
+		gettimeofday(&Time, NULL);
+#endif
+	}
+
+	u32 click() // return in ms
+	{
+#ifdef XPF_PLATFORM_WINDOWS
+		LARGE_INTEGER c;
+		QueryPerformanceCounter(&c);
+		double ret = (double)(c.QuadPart - Counter.QuadPart) / (double)Freq.QuadPart;
+		Counter = c;
+		return (u32)(ret * 1000);
+#else
+		struct timeval t, s;
+		gettimeofday(&t, NULL);
+		timersub(&t, &Time, &s);
+		Time = t;
+		return (u32)((s.tv_sec * 1000) + (s.tv_usec / 1000));
+#endif
+	}
+
+private:
+#ifdef XPF_PLATFORM_WINDOWS
+	LARGE_INTEGER Freq;
+	LARGE_INTEGER Counter;
+#else
+	struct timeval Time;
+#endif
+};
 
 struct MemObj
 {
@@ -92,6 +133,7 @@ struct Bank
 };
 
 bool _g_sanity = true;
+bool _g_memop = true;
 
 bool test(bool sysalloc = false)
 {
@@ -171,7 +213,7 @@ bool test(bool sysalloc = false)
 					b.number--;
 					b.objs.push_back(MemObj(ptr, b.size));
 					u32 pt = (u32)rand();
-					if (_g_sanity)
+					if (_g_memop)
 						b.objs.back().provision(pt);
 					liveObjs++;
 					liveBytes += b.size;
@@ -189,7 +231,7 @@ bool test(bool sysalloc = false)
 			{
 				MemObj &obj = b.objs.front();
 
-				if (_g_sanity)
+				if (_g_memop)
 				{
 					if (!obj.validate())
 						return false;
@@ -233,6 +275,8 @@ int main()
 	unsigned int seed = (unsigned int)time(NULL);
 	srand(seed);
 
+	printf("\n==== SanityTest ====\n");
+
 	u32 poolSize = (1 << 27); //128mb
 	u32 size = MemoryPool::create(poolSize);
 	xpfAssert(0 != size);
@@ -242,32 +286,41 @@ int main()
 	xpfAssert(ret);
 	MemoryPool::destory();
 
-	printf("\n====Benchmark====\n");
-
-	size = MemoryPool::create(poolSize);
-	xpfAssert(0 != size);
 	_g_sanity = false;
-#ifdef XPF_PLATFORM_WINDOWS
-	srand(seed);
+	while (true)
+	{
+		printf("\n==== Benchmark (%s memop) ====\n", (_g_memop)? "with": "without");
 
-	LARGE_INTEGER freq, cnt1, cnt2;
-	QueryPerformanceFrequency(&freq);
-	QueryPerformanceCounter(&cnt1);
-	test();
-	QueryPerformanceCounter(&cnt2);
-	double timeCost1 = (double)(cnt2.QuadPart - cnt1.QuadPart) / (double)freq.QuadPart;
-	printf("Time cost of buddy = %f secs\n", timeCost1);
-	MemoryPool::destory();
+		size = MemoryPool::create(poolSize);
+		xpfAssert(0 != size);
+		srand(seed);
 
-	srand(seed);
-	QueryPerformanceCounter(&cnt1);
-	test(true);
-	QueryPerformanceCounter(&cnt2);
-	double timeCost2 = (double)(cnt2.QuadPart - cnt1.QuadPart) / (double)freq.QuadPart;
-	printf("Time cost of sysalloc = %f secs\n", timeCost2);
+		StopWatch sw;
+		test();
+		u32 timeCost1 = sw.click();
+		printf("Time cost of buddy = %u ms\n", timeCost1);
+		MemoryPool::destory();
 
-	printf("Improved: %f%%\n", (timeCost2 - timeCost1)*100.00/timeCost2);
-#endif
+		srand(seed);
+		sw.click();
+		test(true);
+		u32 timeCost2 = sw.click();
+		printf("Time cost of sysalloc = %u ms\n", timeCost2);
+
+		if (timeCost2 > timeCost1)
+		{
+			printf("Improved: %f%%\n", (double)(timeCost2 - timeCost1)*100.00/(double)timeCost2);
+		}
+		else
+		{
+			printf("Worse than sysalloc.\n");
+		}
+
+		if (_g_memop)
+			_g_memop = false;
+		else
+			break;
+	}
 
 	
 	return 0;
