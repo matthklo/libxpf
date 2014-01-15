@@ -90,7 +90,7 @@ private:
 	MemoryPoolDetails *mDetails;
 };
 
-template < typename T, MemoryPool* INST = 0 >
+template < typename T >
 class MemoryPoolAllocator
 {
 public:
@@ -107,7 +107,7 @@ public:
 public:
 	MemoryPoolAllocator ()
 	{
-		mPool = (INST == 0)? MemoryPool::instance(): INST;
+		mPool = MemoryPool::instance();
 	}
 
 	MemoryPoolAllocator ( const MemoryPoolAllocator& other )
@@ -152,7 +152,7 @@ public:
 		xpfAssert(mPool != 0);
 		pointer ptr = (pointer) mPool->alloc(n * sizeof(value_type));
 		if (NULL == ptr)
-			throw std::bad_alloc;
+			throw std::bad_alloc();
 		return ptr;
 	}
 
