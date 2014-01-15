@@ -59,10 +59,11 @@ public:
 		: TierNum(1)
 		, Capacity(1 << MINSIZE_POWOF2)
 	{
-		// Static assert which make sure the size of FreeBlockRecord 
-		// is less or equal to smallest possible block size.
+		// This is a static assertion which makes sure the size 
+		// of FreeBlockRecord is always less or equal to the smallest 
+		// possible block size.
 		// If compiler nag anything about this line, the assumption
-		// probably doesn't hold.
+		// probably doesn't hold. Which is fatal to our implementation.
 		xpfSAssert((sizeof(FreeBlockRecord) <= (1<<MINSIZE_POWOF2)));
 
 		const u32 maxSize = (1 << MAXSIZE_POWOF2);
@@ -283,7 +284,7 @@ private:
 
 	// Input: A pointer to an allocated block and its tier index.
 	// Return: A pointer to its buddy block on the same tier. Or NULL on error.
-	inline void* buddyAddrOf( const u32 tier, void *p )
+	inline void* buddyAddrOf ( const u32 tier, void *p )
 	{
 		if ( xpfUnlikely (isValidPtr(p)) )
 			return NULL;
@@ -294,14 +295,14 @@ private:
 
 	// Input: Block id of any tier.
 	// Return: The block id of its buddy on the same tier.
-	inline u32 buddyIdOf( const u32 blockId ) const
+	inline u32 buddyIdOf ( const u32 blockId ) const
 	{
 		return (blockId ^ 0x1);
 	}
 
 	// Input: A pointer to an allocated block and its tier index.
 	// Return: The block id of the input block on that tier. Or INVALID_VALUE on error.
-	inline u32 blockIdOf( const u32 tier, void *p ) const
+	inline u32 blockIdOf ( const u32 tier, void *p ) const
 	{
 		if ( xpfUnlikely (isValidPtr(p)) )
 			return INVALID_VALUE;
@@ -316,7 +317,7 @@ private:
 	}
 
 	// Return the block size of given tier.
-	inline u32 blockSizeOf( const u32 tier ) const
+	inline u32 blockSizeOf ( const u32 tier ) const
 	{
 		xpfAssert(tier < TierNum);
 		return (1 << (MINSIZE_POWOF2 + TierNum - tier - 1));
@@ -331,15 +332,15 @@ private:
 		while (t >= 0)
 		{
 			if (size <= s)
-				break;
+				return (u32)t;
 			s <<= 1;
 			t--;
 		}
 
-		return (t >= 0)? (u32)t: INVALID_VALUE;
+		return INVALID_VALUE;
 	}
 
-	inline bool isBlockInUse(const u32 tier, const u32 blockId) const
+	inline bool isBlockInUse (const u32 tier, const u32 blockId) const
 	{
 		xpfAssert(tier < TierNum);
 		const u32 idx = (1 << tier) + blockId;
@@ -348,7 +349,7 @@ private:
 		return (0 != (Flags[offset] & mask));
 	}
 
-	inline void setBlockInUse(const u32 tier, const u32 blockId, bool val)
+	inline void setBlockInUse (const u32 tier, const u32 blockId, bool val)
 	{
 		xpfAssert(tier < TierNum);
 		const u32 idx = (1 << tier) + blockId;
@@ -368,7 +369,7 @@ private:
 	// based on given pointer. Return true if found one with its tier
 	// index and block id stored in outTier and outBlockId. Return false
 	// on error.
-	bool locateBlockInUse( void *p, u32& outTier, u32& outBlockId ) const
+	bool locateBlockInUse ( void *p, u32& outTier, u32& outBlockId ) const
 	{
 		bool ret = false;
 		u32 t = TierNum;
@@ -403,7 +404,6 @@ private:
 MemoryPool::MemoryPool(u32 size)
 	: mDetails(new MemoryPoolDetails(size))
 {
-
 }
 
 MemoryPool::~MemoryPool()
