@@ -244,10 +244,10 @@ bool test(bool sysalloc = false)
 				}
 				else
 				{
-					//if (useDealloc)
+					if (useDealloc)
 						pool->dealloc(obj.ptr, obj.size);
-					//else
-						//pool->free(obj.ptr);
+					else
+						pool->free(obj.ptr);
 				}
 
 				b.objs.pop_front();
