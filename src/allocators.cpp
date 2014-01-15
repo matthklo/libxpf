@@ -113,10 +113,12 @@ public:
 	void dealloc ( void *p, const u32 size )
 	{
 		const u32 tier = tierOf(size);
+		xpfAssert(tier != INVALID_VALUE);
 		if ( xpfUnlikely(INVALID_VALUE == tier) )
 			return;
 
 		const u32 blockId = blockIdOf(tier, p);
+		xpfAssert(blockId != INVALID_VALUE);
 		if ( xpfLikely ( blockId != INVALID_VALUE ) )
 			recycle(tier, blockId);
 	}
@@ -125,7 +127,9 @@ public:
 	void free ( void *p )
 	{
 		u32 tier, blockId;
-		if (locateBlockInUse(p, tier, blockId))
+		bool located = locateBlockInUse(p, tier, blockId);
+		xpfAssert(located);
+		if (located)
 		{
 			recycle(tier, blockId);
 		}
@@ -225,6 +229,7 @@ private:
 	void recycle( const u32 tier, const u32 blockId)
 	{
 		// 1. Validate the in-use bit of given block.
+		xpfAssert(isBlockInUse(tier, blockId) == true);
 		setBlockInUse(tier, blockId, false);
 
 		// 2. Check the status of its buddy block. 
@@ -272,14 +277,19 @@ private:
 
 	inline bool isValidPtr ( void *p ) const
 	{
+		xpfAssert((char*)p >= Chunk);
 		if ( xpfUnlikely ((char*)p < Chunk) )
 			return false;
 
 		const u32 offset = (u32)((char*)p - Chunk);
+		xpfAssert(offset < Capacity);
 		if ( xpfUnlikely (offset >= Capacity) )
 			return false;
 
-		return (offset == (offset & (1 << MINSIZE_POWOF2))); // if it aligns to minimal block size.
+		// Check if it aligns to minimal block size.
+		const bool aligned = (offset == (offset & (0xFFFFFFFF << MINSIZE_POWOF2)));
+		xpfAssert(aligned);
+		return aligned;
 	}
 
 	// Input: A pointer to an allocated block and its tier index.
@@ -304,13 +314,17 @@ private:
 	// Return: The block id of the input block on that tier. Or INVALID_VALUE on error.
 	inline u32 blockIdOf ( const u32 tier, void *p ) const
 	{
-		if ( xpfUnlikely (isValidPtr(p)) )
+		const bool valid = isValidPtr(p);
+		xpfAssert(valid);
+		if ( xpfUnlikely (!valid) )
 			return INVALID_VALUE;
 
 		// Check if p aligns to the block size of given tier.
 		const u32 offset = (u32)((char*)p - Chunk);
 		const u32 mask = (0xFFFFFFFF << (MINSIZE_POWOF2 + TierNum - tier - 1));
-		if ( xpfUnlikely (offset != (offset & mask)) )
+		const bool aligned = (offset == (offset & mask));
+		xpfAssert(aligned);
+		if ( xpfUnlikely (!aligned) )
 			return INVALID_VALUE;
 
 		return (offset / blockSizeOf(tier));
@@ -377,6 +391,7 @@ private:
 		{
 			--t;
 			const u32 blockId = blockIdOf(t, p);
+			xpfAssert(blockId != INVALID_VALUE);
 			if (INVALID_VALUE == blockId)
 				break;
 

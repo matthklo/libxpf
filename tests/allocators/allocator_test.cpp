@@ -135,6 +135,9 @@ struct Bank
 bool _g_log = true;
 bool _g_memop = true;
 
+//128mb
+#define POOLSIZE (1 << 27)
+
 bool test(bool sysalloc = false)
 {
 	MemoryPool *pool = (sysalloc)? 0: MemoryPool::instance();
@@ -146,6 +149,8 @@ bool test(bool sysalloc = false)
 		Bank((1<<21), 16),   //  2mb *16 = 32mb
 		Bank((1<<12), 2048), //  4kb *2048 = 8mb
 		Bank((1<<7), (1<<16)),  // 128b * 2^16 = 8mb
+
+		Bank(0,0),
 	};
 
 	int probs[] = { 2, 6, 22, 2070, 67606, 0 };
@@ -267,6 +272,32 @@ bool test(bool sysalloc = false)
 
 	printf("Test: liveBytes = %u, liveObjs = %u, falseOp = %u, falseAlloc = %u\n", liveBytes, liveObjs, falseOp, falseAlloc);
 
+	// free all objs and make sure the top-most block can be allocated
+	if (_g_log)
+	{
+		for(int i=0; ; ++i)
+		{
+			Bank& b = profile[i];
+			if ((b.size == 0) && (b.number == 0))
+				break;
+
+			while(!b.objs.empty())
+			{
+				liveObjs--;
+				liveBytes -= b.size;
+				//pool->free(b.objs.front().ptr);
+				pool->dealloc(b.objs.front().ptr, b.size);
+				b.objs.pop_front();
+			}
+		}
+
+		xpfAssert((liveObjs == 0) && (liveBytes == 0));
+
+		void * p = pool->alloc(POOLSIZE);
+		if (!p)
+			return false;
+	}
+
 	return true;
 }
 
@@ -277,8 +308,7 @@ int main()
 
 	printf("\n==== SanityTest ====\n");
 
-	u32 poolSize = (1 << 27); //128mb
-	u32 size = MemoryPool::create(poolSize);
+	u32 size = MemoryPool::create(POOLSIZE);
 	xpfAssert(0 != size);
 
 
@@ -291,7 +321,7 @@ int main()
 	{
 		printf("\n==== Benchmark (%s memop) ====\n", (_g_memop)? "with": "without");
 
-		size = MemoryPool::create(poolSize);
+		size = MemoryPool::create(POOLSIZE);
 		xpfAssert(0 != size);
 		srand(seed);
 
