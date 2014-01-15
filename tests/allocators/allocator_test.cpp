@@ -132,7 +132,7 @@ struct Bank
 	std::deque<MemObj> objs;
 };
 
-bool _g_sanity = true;
+bool _g_log = true;
 bool _g_memop = true;
 
 bool test(bool sysalloc = false)
@@ -174,7 +174,7 @@ bool test(bool sysalloc = false)
 			randomCnt++;
 			if (randomCnt >= 1000)
 			{
-				if (_g_sanity) printf("Enqueue 500 allocs after 1000 random ops.\n");
+				if (_g_log) printf("Enqueue 500 allocs after 1000 random ops.\n");
 				op = true;
 				opCnt = 500;
 				randomCnt = 0;
@@ -194,7 +194,7 @@ bool test(bool sysalloc = false)
 		{
 			if (b.number == 0)
 			{
-				if (_g_sanity) printf("Alloc: MemObj of size %u run out of quota.\n", b.size);
+				if (_g_log) printf("Alloc: MemObj of size %u run out of quota.\n", b.size);
 				falseOp++;
 			}
 			else
@@ -202,7 +202,7 @@ bool test(bool sysalloc = false)
 				void * ptr = (sysalloc)? malloc(b.size): pool->alloc(b.size);
 				if (NULL == ptr)
 				{
-					if (_g_sanity) printf("Alloc: MemoryPool failed to allocate MemObj of size %u. (liveBytes = %u, liveObjs = %u).\n", b.size, liveBytes, liveObjs);
+					if (_g_log) printf("Alloc: MemoryPool failed to allocate MemObj of size %u. (liveBytes = %u, liveObjs = %u).\n", b.size, liveBytes, liveObjs);
 					op = false;
 					opCnt = 2000;
 					randomCnt = 0;
@@ -224,7 +224,7 @@ bool test(bool sysalloc = false)
 		{
 			if (b.objs.empty())
 			{
-				if (_g_sanity) printf("Dealloc: No more live MemObj of size %u.\n", b.size);
+				if (_g_log) printf("Dealloc: No more live MemObj of size %u.\n", b.size);
 				falseOp++;
 			}
 			else
@@ -258,7 +258,7 @@ bool test(bool sysalloc = false)
 			}
 		}
 
-		if (_g_sanity && (totalCnt%1000 == 0))
+		if (_g_log && (totalCnt%1000 == 0))
 		{
 			printf("Test: liveBytes = %u, liveObjs = %u, falseOp = %u, falseAlloc = %u\n", liveBytes, liveObjs, falseOp, falseAlloc);
 		}
@@ -286,7 +286,7 @@ int main()
 	xpfAssert(ret);
 	MemoryPool::destory();
 
-	_g_sanity = false;
+	_g_log = false;
 	while (true)
 	{
 		printf("\n==== Benchmark (%s memop) ====\n", (_g_memop)? "with": "without");
