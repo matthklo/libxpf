@@ -39,7 +39,7 @@ ThreadLock::ThreadLock()
 
 ThreadLock::ThreadLock(const ThreadLock& that)
 {
-	xpfAssert(false);
+	xpfAssert( ( "non-copyable", false ) );
 }
 
 ThreadLock::~ThreadLock()
@@ -51,7 +51,7 @@ ThreadLock::~ThreadLock()
 
 ThreadLock& ThreadLock::operator = (const ThreadLock& that)
 {
-	xpfAssert(false);
+	xpfAssert( ( "non-copyable", false ) );
 	return *this;
 }
 

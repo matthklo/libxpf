@@ -57,7 +57,7 @@ Thread::Thread()
 
 Thread::Thread(const Thread& that)
 {
-	xpfAssert(false);
+	xpfAssert( ( "non-copyable", false ) );
 }
 
 Thread::~Thread()
@@ -69,7 +69,7 @@ Thread::~Thread()
 
 Thread& Thread::operator = (const Thread& that)
 {
-	xpfAssert(false);
+	xpfAssert( ( "non-copyable", false ) );
 	return *this;
 }
 

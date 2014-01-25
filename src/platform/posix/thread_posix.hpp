@@ -164,12 +164,12 @@ public:
 private:
 	XpfThread(const XpfThread& that)
 	{
-		xpfAssert(false);
+		xpfAssert( ( "non-copyable object", false ) );
 	}
 
 	XpfThread& operator = (const XpfThread& that)
 	{
-		xpfAssert(false);
+		xpfAssert( ( "non-copyable object", false ) );
 		return *this;
 	}
 

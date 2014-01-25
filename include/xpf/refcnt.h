@@ -57,7 +57,7 @@ namespace xpf {
 
 		virtual bool unref() const
 		{
-			xpfAssert(mRefCount > 0);
+			xpfAssert( ( "Expecting a positive ref count.", mRefCount > 0 ));
 
 			if (0 == (--mRefCount))
 			{

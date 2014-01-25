@@ -58,8 +58,8 @@ public:
 	~ScopedThreadLock() { mLock->unlock(); }
 private:
 	// non-copyable
-	ScopedThreadLock( const ScopedThreadLock& that) { xpfAssert(false); }
-	ScopedThreadLock& operator = ( const ScopedThreadLock& that ) { xpfAssert(false); return *this; }
+	ScopedThreadLock( const ScopedThreadLock& that) { xpfAssert( ( "non-copyable object", false ) ); }
+	ScopedThreadLock& operator = ( const ScopedThreadLock& that ) { xpfAssert( ( "non-copyable object", false ) ); return *this; }
 	ThreadLock *mLock;
 };
 

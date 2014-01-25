@@ -36,7 +36,7 @@
 #ifdef NDEBUG
 // From http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
 // A way to disable assert() which shushes more compilers than just define an empty macro body (the way used by assert.h).
-#	define xpfAssert(x) do { (void)sizeof(x); } while((void)(__LINE__==-1),false)
+#	define xpfAssert(x) do { (void)sizeof(x); } while((void)(__LINE__==-1), 0)
 #else
 #	include <assert.h>
 #	define xpfAssert assert

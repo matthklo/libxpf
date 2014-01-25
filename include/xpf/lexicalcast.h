@@ -99,7 +99,7 @@ namespace xpf {
 			return (TargetType) buf;
 		}
 		
-		xpfAssert(false); // unsupported casting target
+		xpfAssert( ( "Unsupported casting target (String to numeric).", false ) ); // unsupported casting target
 		return TargetType(); // shoud never reach here.
 	}
 
@@ -151,7 +151,7 @@ namespace xpf {
 		}
 		else
 		{
-			xpfAssert(false);
+			xpfAssert( ( "Unsupported casting target (Numeric to string).", false ) );
 		}
 
 		return result;

@@ -28,10 +28,11 @@
 #define MINSIZE_POWOF2 (4)
 #define MAXSIZE_POWOF2 (31)
 #define INVALID_VALUE  (0xFFFFFFFF)
+#define MAXPOOL_SLOT (256)
 
 namespace xpf {
 
-static MemoryPool* _global_pool_instance = 0;
+static MemoryPool* _global_pool_instances[MAXPOOL_SLOT] = {0};
 
 /****************************************************************************
  * A memory pool implementation based on Buddy memory allocation algorithm
@@ -113,12 +114,12 @@ public:
 	void dealloc ( void *p, const u32 size )
 	{
 		const u32 tier = tierOf(size);
-		xpfAssert(tier != INVALID_VALUE);
+		xpfAssert( ( "Expecting a valid tier index." , tier != INVALID_VALUE ) );
 		if ( xpfUnlikely(INVALID_VALUE == tier) )
 			return;
 
 		const u32 blockId = blockIdOf(tier, p);
-		xpfAssert(blockId != INVALID_VALUE);
+		xpfAssert( ( "Expecting a valid blockId." , blockId != INVALID_VALUE ) );
 		if ( xpfLikely ( blockId != INVALID_VALUE ) )
 			recycle(tier, blockId);
 	}
@@ -128,7 +129,7 @@ public:
 	{
 		u32 tier, blockId;
 		bool located = locateBlockInUse(p, tier, blockId);
-		xpfAssert(located);
+		xpfAssert( ( "Expecting a managed pointer.", located ) );
 		if (located)
 		{
 			recycle(tier, blockId);
@@ -229,7 +230,7 @@ private:
 	void recycle( const u32 tier, const u32 blockId)
 	{
 		// 1. Validate the in-use bit of given block.
-		xpfAssert(isBlockInUse(tier, blockId) == true);
+		xpfAssert( ( "Expecting a in-using blockId.", isBlockInUse(tier, blockId) == true ) );
 		setBlockInUse(tier, blockId, false);
 
 		// 2. Check the status of its buddy block. 
@@ -277,18 +278,18 @@ private:
 
 	inline bool isValidPtr ( void *p ) const
 	{
-		xpfAssert((char*)p >= Chunk);
+		xpfAssert( ( "Expecting a managed pointer (>= bulk start).", (char*)p >= Chunk ) );
 		if ( xpfUnlikely ((char*)p < Chunk) )
 			return false;
 
 		const u32 offset = (u32)((char*)p - Chunk);
-		xpfAssert(offset < Capacity);
+		xpfAssert( ( "Expecting a managed pointer ( < bulk length).", offset < Capacity ) );
 		if ( xpfUnlikely (offset >= Capacity) )
 			return false;
 
 		// Check if it aligns to minimal block size.
 		const bool aligned = (offset == (offset & (0xFFFFFFFF << MINSIZE_POWOF2)));
-		xpfAssert(aligned);
+		xpfAssert( ( "Expecting an aligned pointer.", aligned ) );
 		return aligned;
 	}
 
@@ -315,7 +316,7 @@ private:
 	inline u32 blockIdOf ( const u32 tier, void *p ) const
 	{
 		const bool valid = isValidPtr(p);
-		xpfAssert(valid);
+		xpfAssert( ( "Expecting a valid pointer.", valid ) );
 		if ( xpfUnlikely (!valid) )
 			return INVALID_VALUE;
 
@@ -323,7 +324,7 @@ private:
 		const u32 offset = (u32)((char*)p - Chunk);
 		const u32 mask = (0xFFFFFFFF << (MINSIZE_POWOF2 + TierNum - tier - 1));
 		const bool aligned = (offset == (offset & mask));
-		xpfAssert(aligned);
+		xpfAssert( ( "Expecting an aligned pointer.", aligned ) );
 		if ( xpfUnlikely (!aligned) )
 			return INVALID_VALUE;
 
@@ -333,7 +334,7 @@ private:
 	// Return the block size of given tier.
 	inline u32 blockSizeOf ( const u32 tier ) const
 	{
-		xpfAssert(tier < TierNum);
+		xpfAssert( ( "Expecting a valid tier index.", tier < TierNum ) );
 		return (1 << (MINSIZE_POWOF2 + TierNum - tier - 1));
 	}
 
@@ -356,7 +357,7 @@ private:
 
 	inline bool isBlockInUse (const u32 tier, const u32 blockId) const
 	{
-		xpfAssert(tier < TierNum);
+		xpfAssert( ( "Expecting a valid tier index.", tier < TierNum ) );
 		const u32 idx = (1 << tier) + blockId;
 		const u32 offset = (idx >> 3);
 		const char mask = (1 << (idx & 0x7));
@@ -365,7 +366,7 @@ private:
 
 	inline void setBlockInUse (const u32 tier, const u32 blockId, bool val)
 	{
-		xpfAssert(tier < TierNum);
+		xpfAssert( ( "Expecting a valid tier index.", tier < TierNum ) );
 		const u32 idx = (1 << tier) + blockId;
 		const u32 offset = (idx >> 3);
 		const char mask = (1 << (idx & 0x7));
@@ -391,7 +392,7 @@ private:
 		{
 			--t;
 			const u32 blockId = blockIdOf(t, p);
-			xpfAssert(blockId != INVALID_VALUE);
+			xpfAssert( ( "Expecting a valid blockId.", blockId != INVALID_VALUE ) );
 			if (INVALID_VALUE == blockId)
 				break;
 
@@ -432,54 +433,60 @@ MemoryPool::~MemoryPool()
 
 u32 MemoryPool::capacity() const
 {
-	xpfAssert(mDetails != 0);
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->capacity();
 }
 
 void* MemoryPool::alloc ( u32 size )
 {
-	xpfAssert(mDetails != 0);
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->alloc(size);
 }
 
 void MemoryPool::dealloc ( void *p, u32 size )
 {
-	xpfAssert(mDetails != 0);
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	mDetails->dealloc(p, size);
 }
 
 void MemoryPool::free ( void *p )
 {
-	xpfAssert(mDetails != 0);
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	mDetails->free(p);
 }
 
 void* MemoryPool::realloc ( void *p, u32 size )
 {
-	xpfAssert(mDetails != 0);
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->realloc(p, size);
 }
 
-u32 MemoryPool::create( u32 size )
+u32 MemoryPool::create( u32 size, u16 slotId )
 {
-	destory();
-	_global_pool_instance = new MemoryPool(size);
-	xpfAssert(_global_pool_instance != 0);
-	return (_global_pool_instance)? _global_pool_instance->capacity() : 0;
+	if ( xpfUnlikely(slotId >= MAXPOOL_SLOT) )
+		return 0;
+
+	destory(slotId);
+	_global_pool_instances[slotId] = new MemoryPool(size);
+	xpfAssert( ( "Unable to create memory bulk.", _global_pool_instances[slotId] != 0 ) );
+	return (_global_pool_instances[slotId])? _global_pool_instances[slotId]->capacity() : 0;
 }
 
-void MemoryPool::destory()
+void MemoryPool::destory(u16 slotId)
 {
-	if ( xpfLikely (_global_pool_instance != 0) )
+	if ( xpfUnlikely(slotId >= MAXPOOL_SLOT) )
+		return;
+
+	if ( xpfLikely (_global_pool_instances[slotId] != 0) )
 	{
-		delete _global_pool_instance;
-		_global_pool_instance = 0;
+		delete _global_pool_instances[slotId];
+		_global_pool_instances[slotId] = 0;
 	}
 }
 
-MemoryPool* MemoryPool::instance()
+MemoryPool* MemoryPool::instance(u16 slotId)
 {
-	return _global_pool_instance;
+	return (xpfUnlikely(slotId >= MAXPOOL_SLOT))? NULL: _global_pool_instances[slotId];
 }
 
 }; // end of namespace xpf

@@ -35,29 +35,34 @@ class XPF_API MemoryPool
 {
 public:
 	/*****
-	 *  Initialize a global memory pool which pre-allocates a memory bulk 
-	 *  of length of 'size'. The 'size' must be power of 2 or it will be
-	 *  promoted to be one (nearest but not less than). The promoted size
-	 *  value should neither less than 2^4 (16 bytes) nor larger than 2^31
-	 *  (2 Gb). Later calls of MemoryPool::instance() returns the pointer
+	 *  Initialize a global memory pool in slot of 'slotId' which pre-
+	 *  allocates a memory bulk of length of 'size'. The 'size' shall be 
+	 *  power of 2 or it will be promoted to be one (nearest but not 
+	 *  less than). The promoted size value should neither less than 2^4 
+	 *  (16 bytes) nor larger than 2^31 (2 Gb). Later calls of 
+	 *  MemoryPool::instance() with the same 'slotId' returns the pointer
 	 *  to this global memory pool instance. One should call MemoryPool::
-	 *  destroy() after done using.
+	 *  destroy() with 'slotId' after done using to release the memory
+	 *  bulk.
+	 *
+	 *  'slotId' should be a unsigned short integer ranged from 0 to 255.
 	 *
 	 *  Returns the promoted memory pool size. Returns 0 on error.
 	 */
-	static u32  create( u32 size );
+	static u32  create( u32 size, u16 slotId = 0 );
 
 	/*****
-	 *  Delete the global memory pool instance if ever created.
+	 *  Delete the global memory pool instance in slot of 'slotId' 
+	 *  if ever created.
 	 */
-	static void destory();
+	static void destory(u16 slotId = 0);
 
 	/*****
-	 *  Return the pointer to the global accessable memory pool instance.
-	 *  Make sure the MemoryPool::create() has been called before or
-	 *  this returns 0 (NULL).
+	 *  Return the pointer to the global accessable memory pool instance
+	 *  in given slot. Make sure the MemoryPool::create() has been called 
+	 *  on the same slot before otherwise it returns 0 (NULL).
 	 */
-	static MemoryPool* instance();
+	static MemoryPool* instance(u16 slotId = 0);
 
 public:
 	explicit MemoryPool ( u32 size );
@@ -90,7 +95,7 @@ private:
 	MemoryPoolDetails *mDetails;
 };
 
-template < typename T >
+template < typename T , xpf::u16 SLOT = 0 >
 class MemoryPoolAllocator
 {
 public:
@@ -107,7 +112,7 @@ public:
 public:
 	MemoryPoolAllocator ()
 	{
-		mPool = MemoryPool::instance();
+		mPool = MemoryPool::instance(SLOT);
 	}
 
 	MemoryPoolAllocator ( const MemoryPoolAllocator& other )
@@ -149,7 +154,7 @@ public:
 
 	pointer allocate ( size_type n, void* hint = 0 )
 	{
-		xpfAssert(mPool != 0);
+		xpfAssert( ( "Null mPool.", mPool != 0 ) );
 		pointer ptr = (pointer) mPool->alloc(n * sizeof(value_type));
 		if (NULL == ptr)
 			throw std::bad_alloc();
@@ -158,13 +163,13 @@ public:
 
 	void deallocate ( pointer p, size_type n )
 	{
-		xpfAssert(mPool != 0);
+		xpfAssert( ( "Null mPool.", mPool != 0 ) );
 		mPool->dealloc( (void*) p, n * sizeof(value_type) );
 	}
 
 	size_type max_size() const
 	{
-		xpfAssert(mPool != 0);
+		xpfAssert( ( "Null mPool.", mPool != 0 ) );
 		return (mPool->capacity() / sizeof(value_type));
 	}
 

@@ -80,12 +80,12 @@ namespace xpf { namespace details {
 	private:
 		XpfThreadLock(const XpfThreadLock& that)
 		{
-			xpfAssert(false);
+			xpfAssert( ( "non-copyable object", false ) );
 		}
 
 		XpfThreadLock& operator = (const XpfThreadLock& that)
 		{
-			xpfAssert(false);
+			xpfAssert( ( "non-copyable object", false ) );
 			return *this;
 		}
 

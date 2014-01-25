@@ -120,12 +120,12 @@ namespace xpf { namespace details {
 	private:
 		XpfThreadEvent(const XpfThreadEvent& that)
 		{
-			xpfAssert(false);
+			xpfAssert( ( "non-copyable object", false ) );
 		}
 
 		XpfThreadEvent& operator = (const XpfThreadEvent& that)
 		{
-			xpfAssert(false);
+			xpfAssert( ( "non-copyable object", false ) );
 			return *this;
 		}
 

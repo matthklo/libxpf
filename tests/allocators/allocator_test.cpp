@@ -242,7 +242,7 @@ bool test(bool sysalloc = false)
 						return false;
 				}
 
-				bool useDealloc = rand()%2;
+				bool useDealloc = (rand()%2 > 0);
 				if (sysalloc)
 				{
 					free(obj.ptr);
@@ -285,8 +285,8 @@ bool test(bool sysalloc = false)
 			{
 				liveObjs--;
 				liveBytes -= b.size;
-				//pool->free(b.objs.front().ptr);
-				pool->dealloc(b.objs.front().ptr, b.size);
+				pool->free(b.objs.front().ptr);
+				//pool->dealloc(b.objs.front().ptr, b.size);
 				b.objs.pop_front();
 			}
 		}

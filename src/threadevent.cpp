@@ -39,7 +39,7 @@ ThreadEvent::ThreadEvent(bool set)
 
 ThreadEvent::ThreadEvent(const ThreadEvent& that)
 {
-	xpfAssert(false); // ThreadEvent is non-copyable
+	xpfAssert( ( "non-copyable", false ) ); // ThreadEvent is non-copyable
 }
 
 ThreadEvent::~ThreadEvent()
@@ -51,7 +51,7 @@ ThreadEvent::~ThreadEvent()
 
 ThreadEvent& ThreadEvent::operator = (const ThreadEvent &that)
 {
-	xpfAssert(false); // ThreadEvent is non-copyable
+	xpfAssert( ( "non-copyable", false ) ); // ThreadEvent is non-copyable
 	return *this;
 }
 
