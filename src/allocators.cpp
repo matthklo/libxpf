@@ -59,6 +59,10 @@ public:
 	explicit MemoryPoolDetails( u32 size )
 		: TierNum(1)
 		, Capacity(1 << MINSIZE_POWOF2)
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+		, UsedBytes(0)
+		, HighPeakBytes(0)
+#endif
 	{
 		// This is a static assertion which makes sure the size 
 		// of FreeBlockRecord is always less or equal to the smallest 
@@ -107,7 +111,15 @@ public:
 		if ( xpfUnlikely (INVALID_VALUE == blockId) )
 			return NULL;
 
-		return (void*)(Chunk + (blockId * blockSizeOf(tier)));
+		const u32 bsize = blockSizeOf(tier);
+
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+		UsedBytes += bsize;
+		if (UsedBytes > HighPeakBytes)
+			HighPeakBytes = UsedBytes;
+#endif
+
+		return (void*)(Chunk + (blockId * bsize));
 	}
 
 	// Return the allocated block with size hint.
@@ -121,7 +133,12 @@ public:
 		const u32 blockId = blockIdOf(tier, p);
 		xpfAssert( ( "Expecting a valid blockId." , blockId != INVALID_VALUE ) );
 		if ( xpfLikely ( blockId != INVALID_VALUE ) )
+		{
 			recycle(tier, blockId);
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+			UsedBytes -= blockSizeOf(tier);
+#endif
+		}
 	}
 
 	// dealloc() without size hint.
@@ -133,6 +150,9 @@ public:
 		if (located)
 		{
 			recycle(tier, blockId);
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+			UsedBytes -= blockSizeOf(tier);
+#endif
 		}
 	}
 
@@ -186,6 +206,11 @@ public:
 	}
 
 	inline u32 capacity() const { return Capacity; }
+
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+	inline u32 usedBytes() const { return UsedBytes; }
+	inline u32 highPeakBytes(bool reset = false) { u32 ret = HighPeakBytes; if (reset) HighPeakBytes = 0; return ret; }
+#endif
 
 private:
 
@@ -413,6 +438,11 @@ private:
 	char*             Flags;
 	u32               TierNum;
 	FreeBlockRecord** FreeChainHead;
+
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+	u32               UsedBytes;
+	u32               HighPeakBytes;
+#endif
 };
 
 // *****************************************************************************
@@ -461,7 +491,18 @@ void* MemoryPool::realloc ( void *p, u32 size )
 	return mDetails->realloc(p, size);
 }
 
-u32 MemoryPool::create( u32 size, u16 slotId )
+void  MemoryPool::trace (u32 &usedBytes, u32 &highPeak, bool resetPeak)
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	usedBytes = mDetails->usedBytes();
+	highPeak = mDetails->highPeakBytes(resetPeak);
+}
+
+
+
+//===========----- Static members ------==============//
+
+u32 MemoryPool::create ( u32 size, u16 slotId )
 {
 	if ( xpfUnlikely(slotId >= MAXPOOL_SLOT) )
 		return 0;
@@ -472,7 +513,7 @@ u32 MemoryPool::create( u32 size, u16 slotId )
 	return (_global_pool_instances[slotId])? _global_pool_instances[slotId]->capacity() : 0;
 }
 
-void MemoryPool::destory(u16 slotId)
+void MemoryPool::destory (u16 slotId)
 {
 	if ( xpfUnlikely(slotId >= MAXPOOL_SLOT) )
 		return;
@@ -484,7 +525,7 @@ void MemoryPool::destory(u16 slotId)
 	}
 }
 
-MemoryPool* MemoryPool::instance(u16 slotId)
+MemoryPool* MemoryPool::instance (u16 slotId)
 {
 	return (xpfUnlikely(slotId >= MAXPOOL_SLOT))? NULL: _global_pool_instances[slotId];
 }

@@ -27,6 +27,8 @@
 #include "platform.h"
 #include <memory>
 
+#define XPF_MEMORYPOOL_ENABLE_TRACE
+
 namespace xpf {
 
 struct MemoryPoolDetails;
@@ -86,6 +88,16 @@ public:
 	// May move the memory block to a new location (whose addr will be returned).
 	// The content of the memory block is preserved up to the lesser of the new and old sizes.
 	void* realloc ( void *p, u32 size );
+
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+
+	// Get current usage status.
+	// usedBytes: allocated block size in bytes.
+	// highPeak:  maximum usedBytes ever reached since last peak reset.
+	// resetPeak: true to reset the highPeak to 0.
+	void  trace ( u32 &usedBytes, u32 &highPeak, bool resetPeak = false);
+
+#endif
 
 private:
 	// non-copyable

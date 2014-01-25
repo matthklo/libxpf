@@ -292,6 +292,12 @@ bool test(bool sysalloc = false)
 		}
 
 		xpfAssert((liveObjs == 0) && (liveBytes == 0));
+#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+		u32 usedBytes, highPeak;
+		pool->trace(usedBytes, highPeak, true);
+		xpfAssert( ("UsedBytes shall be 0", usedBytes == 0) );
+		printf("HighPeakBytes = %u bytes\n", highPeak);
+#endif
 
 		void * p = pool->alloc(POOLSIZE);
 		if (!p)
