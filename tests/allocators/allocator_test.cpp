@@ -292,7 +292,7 @@ bool test(bool sysalloc = false)
 		}
 
 		xpfAssert((liveObjs == 0) && (liveBytes == 0));
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
+#ifdef XPF_ALLOCATORS_ENABLE_TRACE
 		u32 usedBytes, highPeak;
 		pool->trace(usedBytes, highPeak, true);
 		xpfAssert( ("UsedBytes shall be 0", usedBytes == 0) );
@@ -302,6 +302,8 @@ bool test(bool sysalloc = false)
 		void * p = pool->alloc(POOLSIZE);
 		if (!p)
 			return false;
+
+		pool->free(p);
 	}
 
 	return true;
@@ -320,7 +322,27 @@ int main()
 
 	bool ret = test();
 	xpfAssert(ret);
+
+	// std::allocator compatibility
+	{
+		std::deque<int, Allocator<int, MemoryPool> > verifyingDeque;
+		int i=0;
+		for (; i<20000; i++)
+		{
+			verifyingDeque.push_back(i);
+		}
+		i=0;
+		while (!verifyingDeque.empty())
+		{
+			xpfAssert( ( "std::allocator compatibility", i == verifyingDeque.front() ) );
+			i++;
+			verifyingDeque.pop_front();
+		}
+	}
+
 	MemoryPool::destory();
+
+	// done sanity test.
 
 	_g_log = false;
 	while (true)

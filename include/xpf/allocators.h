@@ -27,9 +27,9 @@
 #include "platform.h"
 #include <memory>
 
-#define XPF_MEMORYPOOL_ENABLE_TRACE
-
 namespace xpf {
+
+//============---------- MemoryPool -----------================//
 
 struct MemoryPoolDetails;
 
@@ -62,7 +62,7 @@ public:
 	/*****
 	 *  Return the pointer to the global accessable memory pool instance
 	 *  in given slot. Make sure the MemoryPool::create() has been called 
-	 *  on the same slot before otherwise it returns 0 (NULL).
+	 *  on the same slot otherwise it returns 0 (NULL).
 	 */
 	static MemoryPool* instance(u16 slotId = 0);
 
@@ -72,6 +72,18 @@ public:
 
 	// Returns the pool size in bytes.
 	u32   capacity () const;
+
+	// Return the current maximum allocatable space in bytes.
+	u32   available () const;
+
+	// Return the used (allocated) space in bytes.
+	u32   used() const;
+
+	// Return the high water mark in bytes since last reset
+	u32   hwm() const;
+
+	// Return the high water mark in bytes and reset its value.
+	u32   reset();
 
 	// Allocate a memory chunk which is at least 'bytes' long.
 	// Our implementation guarantees the returned pointer is 
@@ -89,15 +101,9 @@ public:
 	// The content of the memory block is preserved up to the lesser of the new and old sizes.
 	void* realloc ( void *p, u32 size );
 
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
-
-	// Get current usage status.
-	// usedBytes: allocated block size in bytes.
-	// highPeak:  maximum usedBytes ever reached since last peak reset.
-	// resetPeak: true to reset the highPeak to 0.
-	void  trace ( u32 &usedBytes, u32 &highPeak, bool resetPeak = false);
-
-#endif
+	// Allocate for an array of 'num' elements, each of length 'size' bytes.
+	// All allocated memory bytes are initialized to 0.
+	void* calloc ( u32 num, u32 size );
 
 private:
 	// non-copyable
@@ -105,10 +111,69 @@ private:
 	MemoryPool& operator = ( const MemoryPool& other ) { return *this; }
 
 	MemoryPoolDetails *mDetails;
-};
+}; // end of class MemoryPool
 
-template < typename T , xpf::u16 SLOT = 0 >
-class MemoryPoolAllocator
+//============---------- MemoryPool -----------================//
+
+
+
+
+
+
+
+//============---------- MemoryStack -----------================//
+
+
+
+struct MemoryStackDetails;
+
+class XPF_API MemoryStack
+{
+	// NOTE: Expose the same interface as MemoryPool.
+public:
+	static u32  create( u32 size, u16 slotId = 0 );
+	static void destory(u16 slotId = 0);
+	static MemoryStack* instance(u16 slotId = 0);
+
+	explicit MemoryStack ( u32 size );
+	~MemoryStack();
+
+	u32   capacity () const;
+	u32   available () const;
+	u32   used() const;
+	u32   hwm() const;
+	// Return current hwm and reset both hwm and stack pointer.
+	u32   reset();
+
+	void* alloc ( u32 size );
+	void  dealloc ( void *p, u32 size );
+	void  free ( void *p );
+	void* realloc ( void *p, u32 size );
+	void* calloc ( u32 num, u32 size );
+
+private:
+	// non-copyable
+	MemoryStack ( const MemoryStack& other ) {}
+	MemoryStack& operator = ( const MemoryStack& other ) { return *this; }
+
+	MemoryStackDetails *mDetails;
+}; // end of class MemoryStack
+
+
+
+//============---------- MemoryStack -----------================//
+
+
+
+
+
+
+
+
+//============---------- STL allocator compatible -----------================//
+
+template < typename T , typename ALLOCATOR, xpf::u16 SLOT = 0 >
+class Allocator
 {
 public:
 	typedef T* pointer;
@@ -119,37 +184,37 @@ public:
 	typedef u32 size_type;
 
 	template < typename U >
-	struct rebind { typedef MemoryPoolAllocator<U> other; };
+	struct rebind { typedef Allocator<U, ALLOCATOR, SLOT> other; };
 
 public:
-	MemoryPoolAllocator ()
+	Allocator ()
 	{
-		mPool = MemoryPool::instance(SLOT);
+		mPool = ALLOCATOR::instance(SLOT);
 	}
 
-	MemoryPoolAllocator ( const MemoryPoolAllocator& other )
+	Allocator ( const Allocator& other )
 	{
 		mPool = other.mPool;
 	}
 
 	template < typename U >
-	MemoryPoolAllocator ( const MemoryPoolAllocator<U>& other )
+	Allocator ( const Allocator<U, ALLOCATOR, SLOT>& other )
 	{
 		mPool = other.mPool;
 	}
 
-	~MemoryPoolAllocator ()
+	~Allocator ()
 	{
 		mPool = 0;
 	}
 
-	MemoryPoolAllocator& operator = ( const MemoryPoolAllocator& other )
+	Allocator& operator = ( const Allocator& other )
 	{
 		// DO NOT exchange mPool
 	}
 
 	template < typename U >
-	MemoryPoolAllocator& operator = ( const MemoryPoolAllocator<U>& other )
+	Allocator& operator = ( const Allocator<U, ALLOCATOR, SLOT>& other )
 	{
 		// DO NOT exchange mPool
 	}
@@ -197,10 +262,10 @@ public:
 		p->~value_type();
 	}
 
-private:
-	MemoryPool* mPool; // weak reference to a exists memory pool instance.
+public:
+	ALLOCATOR* mPool; // weak reference to a exists memory pool instance.
 
-}; // end of class MemoryPoolAllocator
+}; // end of class Allocator
 
 }; // end of namespace xpf
 

@@ -28,11 +28,13 @@
 #define MINSIZE_POWOF2 (4)
 #define MAXSIZE_POWOF2 (31)
 #define INVALID_VALUE  (0xFFFFFFFF)
-#define MAXPOOL_SLOT (256)
+#define MAXSLOT (256)
 
 namespace xpf {
 
-static MemoryPool* _global_pool_instances[MAXPOOL_SLOT] = {0};
+//============---------- MemoryPool -----------================//
+
+static MemoryPool* _global_pool_instances[MAXSLOT] = {0};
 
 /****************************************************************************
  * A memory pool implementation based on Buddy memory allocation algorithm
@@ -59,10 +61,8 @@ public:
 	explicit MemoryPoolDetails( u32 size )
 		: TierNum(1)
 		, Capacity(1 << MINSIZE_POWOF2)
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
 		, UsedBytes(0)
-		, HighPeakBytes(0)
-#endif
+		, HWMBytes(0)
 	{
 		// This is a static assertion which makes sure the size 
 		// of FreeBlockRecord is always less or equal to the smallest 
@@ -113,11 +113,9 @@ public:
 
 		const u32 bsize = blockSizeOf(tier);
 
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
 		UsedBytes += bsize;
-		if (UsedBytes > HighPeakBytes)
-			HighPeakBytes = UsedBytes;
-#endif
+		if (UsedBytes > HWMBytes)
+			HWMBytes = UsedBytes;
 
 		return (void*)(Chunk + (blockId * bsize));
 	}
@@ -135,9 +133,7 @@ public:
 		if ( xpfLikely ( blockId != INVALID_VALUE ) )
 		{
 			recycle(tier, blockId);
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
 			UsedBytes -= blockSizeOf(tier);
-#endif
 		}
 	}
 
@@ -150,9 +146,7 @@ public:
 		if (located)
 		{
 			recycle(tier, blockId);
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
 			UsedBytes -= blockSizeOf(tier);
-#endif
 		}
 	}
 
@@ -162,6 +156,17 @@ public:
 	// Return NULL on error, in which case the memory content will not be touched.
 	void* realloc ( void *p, const u32 size )
 	{
+		// forwarding cases
+		if ( xpfUnlikely ( NULL == p ) )
+		{
+			return alloc(size);
+		}
+		if ( xpfUnlikely ( 0 == size ) )
+		{
+			free(p);
+			return NULL;
+		}
+
 		u32 tier, blockId;
 		if (locateBlockInUse(p, tier, blockId))
 		{
@@ -206,11 +211,19 @@ public:
 	}
 
 	inline u32 capacity() const { return Capacity; }
-
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
 	inline u32 usedBytes() const { return UsedBytes; }
-	inline u32 highPeakBytes(bool reset = false) { u32 ret = HighPeakBytes; if (reset) HighPeakBytes = 0; return ret; }
-#endif
+	inline u32 hwmBytes(bool reset = false) { u32 ret = HWMBytes; if (reset) HWMBytes = 0; return ret; }
+	u32 available() const
+	{
+		for (u32 t=0; t<TierNum; ++t)
+		{
+			if (NULL != FreeChainHead[t])
+			{
+				return blockSizeOf(t);
+			}
+		}
+		return 0;
+	}
 
 private:
 
@@ -439,10 +452,8 @@ private:
 	u32               TierNum;
 	FreeBlockRecord** FreeChainHead;
 
-#ifdef XPF_MEMORYPOOL_ENABLE_TRACE
 	u32               UsedBytes;
-	u32               HighPeakBytes;
-#endif
+	u32               HWMBytes;
 };
 
 // *****************************************************************************
@@ -465,6 +476,30 @@ u32 MemoryPool::capacity() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->capacity();
+}
+
+u32 MemoryPool::available() const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->available();
+}
+
+u32 MemoryPool::used() const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->usedBytes();
+}
+
+u32 MemoryPool::hwm() const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->hwmBytes();
+}
+
+u32 MemoryPool::reset()
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->hwmBytes(true);
 }
 
 void* MemoryPool::alloc ( u32 size )
@@ -491,20 +526,25 @@ void* MemoryPool::realloc ( void *p, u32 size )
 	return mDetails->realloc(p, size);
 }
 
-void  MemoryPool::trace (u32 &usedBytes, u32 &highPeak, bool resetPeak)
+void* MemoryPool::calloc ( u32 num, u32 size )
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
-	usedBytes = mDetails->usedBytes();
-	highPeak = mDetails->highPeakBytes(resetPeak);
+	const u32 length = num * size;
+	void *ptr = mDetails->alloc(length);
+	if ( xpfLikely(NULL != ptr) )
+	{
+		::memset(ptr, 0, length);
+	}
+	return ptr;
 }
 
 
 
-//===========----- Static members ------==============//
+//===========----- MemoryPool static members ------==============//
 
 u32 MemoryPool::create ( u32 size, u16 slotId )
 {
-	if ( xpfUnlikely(slotId >= MAXPOOL_SLOT) )
+	if ( xpfUnlikely(slotId >= MAXSLOT) )
 		return 0;
 
 	destory(slotId);
@@ -515,7 +555,7 @@ u32 MemoryPool::create ( u32 size, u16 slotId )
 
 void MemoryPool::destory (u16 slotId)
 {
-	if ( xpfUnlikely(slotId >= MAXPOOL_SLOT) )
+	if ( xpfUnlikely(slotId >= MAXSLOT) )
 		return;
 
 	if ( xpfLikely (_global_pool_instances[slotId] != 0) )
@@ -527,8 +567,293 @@ void MemoryPool::destory (u16 slotId)
 
 MemoryPool* MemoryPool::instance (u16 slotId)
 {
-	return (xpfUnlikely(slotId >= MAXPOOL_SLOT))? NULL: _global_pool_instances[slotId];
+	return (xpfUnlikely(slotId >= MAXSLOT))? NULL: _global_pool_instances[slotId];
 }
+
+//============---------- MemoryPool -----------================//
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//============---------- MemoryStack -----------================//
+
+static MemoryStack* _global_stack_instances[MAXSLOT] = {0};
+
+/****************************************************************************
+ * A memory stack implementation which shares similiar idea from obstack project.
+ * https://github.com/cleeus/obstack
+ ****************************************************************************/
+
+struct MemoryStackDetails
+{
+	struct FreeCellRecord
+	{
+		u32 PrevOffset;
+		u32 CRC;
+	};
+
+	char *Chunk;
+	u32   Current;
+	u32   Previous;
+
+	u32   Capacity;
+	u32   HWMBytes;
+};
+
+MemoryStack::MemoryStack ( u32 size )
+{
+	// This assumption shall always true for current implementation.
+	xpfSAssert( MAXSIZE_POWOF2 <= 31);
+
+	if ( size < (1 << MINSIZE_POWOF2) )
+	{
+		size = (1 << MINSIZE_POWOF2);
+	}
+	else if ( size > (1 << MAXSIZE_POWOF2) )
+	{
+		size = (1 << MAXSIZE_POWOF2);
+	}
+	else if ( xpfUnlikely(0 != (size & 0x7)) )
+	{
+		// Upgrade size if it is not a multiply of 8.
+		size = (((size >> 3) + 1) << 3);
+	}
+
+	mDetails = new MemoryStackDetails;
+	mDetails->Chunk = (char*) ::malloc(size);
+	mDetails->Current = 0;
+	mDetails->Previous = 0;
+	mDetails->Capacity = size;
+	mDetails->HWMBytes = 0;
+}
+
+MemoryStack::~MemoryStack ()
+{
+	if (mDetails)
+	{
+		::free(mDetails->Chunk);
+		delete mDetails;
+		mDetails = (MemoryStackDetails*) 0xfefefefe;
+	}
+}
+
+u32 MemoryStack::capacity () const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->Capacity;
+}
+
+u32 MemoryStack::available () const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	const u32 size = mDetails->Capacity - mDetails->Current;
+	if (size < sizeof(MemoryStackDetails::FreeCellRecord))
+		return 0;
+	return size - sizeof(MemoryStackDetails::FreeCellRecord);
+}
+
+u32 MemoryStack::used () const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->Current;
+}
+
+u32 MemoryStack::hwm () const
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	return mDetails->HWMBytes;
+}
+
+u32 MemoryStack::reset()
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+
+	u32 ret = mDetails->HWMBytes;
+	mDetails->Current = mDetails->Previous = mDetails->HWMBytes = 0;
+	return ret;
+}
+
+void* MemoryStack::alloc (u32 size)
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+
+	// Every allocation has an internal space overhead of
+	// sizeof(MemoryStackDetails::FreeCellRecord) (8 bytes).
+	size += sizeof(MemoryStackDetails::FreeCellRecord);
+
+	// Upgrade the size if it is not a multiply of 8.
+	// This can make sure every pointer we return is 8-bytes aligned.
+	if ( 0 != (size & 0x7) )
+	{
+		size = (((size >> 3) + 1) << 3);
+	}
+
+	xpfAssert( ("Expecting Current < Capacity", mDetails->Current < mDetails->Capacity) );
+	if ( xpfLikely(mDetails->Current < mDetails->Capacity) )
+	{
+		MemoryStackDetails::FreeCellRecord *rec = 
+			(MemoryStackDetails::FreeCellRecord*)(mDetails->Chunk + mDetails->Current);
+		rec->PrevOffset = mDetails->Previous;
+		rec->CRC        = rec->PrevOffset ^ 0x5FEE1299; // as checksum of prev.
+		mDetails->Previous = mDetails->Current;
+
+		// This implies the first bit of rec->PrevOffset is not used and 
+		// can be used as a flag indicates the chunk has been freed or not.
+		xpfAssert( ("Expecting PrevOffset < (1<<MAXSIZE_POWOF2)", rec->PrevOffset < (1<<MAXSIZE_POWOF2)) );
+
+		char *ret = mDetails->Chunk + mDetails->Current + sizeof(MemoryStackDetails::FreeCellRecord);
+		mDetails->Current += size;
+
+		if ( mDetails->Current > mDetails->HWMBytes )
+			mDetails->HWMBytes = mDetails->Current;
+
+		return (void*)ret;
+	}
+
+	return NULL;
+}
+
+void MemoryStack::dealloc (void *p, u32 size)
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	XPF_NOTUSED(size);
+	free(p);
+}
+
+void MemoryStack::free (void *p)
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+
+	char *cell = (char*)p - sizeof(MemoryStackDetails::FreeCellRecord);
+
+	xpfAssert( ( "Expecting managed pointer.", ( (cell >= mDetails->Chunk) && (cell < mDetails->Chunk + mDetails->Capacity) ) ) );
+
+	if ( xpfLikely( (cell >= mDetails->Chunk) && (cell < mDetails->Chunk + mDetails->Capacity) ) )
+	{
+		// Check if data corrupted.
+		MemoryStackDetails::FreeCellRecord *rec = (MemoryStackDetails::FreeCellRecord*)cell;
+		xpfAssert( ("Checksum matched (data corrupted)", ((rec->PrevOffset & 0x7FFFFFFF) ^ 0x5FEE1299) == rec->CRC ) );
+		xpfAssert( ("In-using cell", (0 == (rec->PrevOffset & 0x80000000))) );
+
+		// Mark this cell as freed
+		const u32 prev = rec->PrevOffset;
+		rec->PrevOffset |= 0x80000000;
+
+		// For cells who are not at the top of the stack,
+		// just return here.
+		if ( mDetails->Previous != prev )
+			return;
+
+		// For the top-most cell, we need to apply a rollback sequence
+		// to adjust both mDetails->Current and mDetails->Previous to fit 
+		// the next top-most cell which is still alive.
+		while (true)
+		{
+			mDetails->Current = ((char*)rec - mDetails->Chunk);
+
+			// Quit the loop if hit the bottom of stack (all cells have been freed).
+			if ( xpfUnlikely ( 0 == mDetails->Current ) )
+			{
+				mDetails->Previous = 0;
+				break;
+			}
+
+			// Locate and verify the FreeCellRecord of previous cell.
+			rec = (MemoryStackDetails::FreeCellRecord*)(mDetails->Chunk + mDetails->Previous);
+			xpfAssert( ("Checksum matched (data corrupted)", ((rec->PrevOffset & 0x7FFFFFFF) ^ 0x5FEE1299) == rec->CRC ) );
+			mDetails->Previous = (rec->PrevOffset & 0x7FFFFFFF);
+
+			// Quit the loop whenever we meet an alive cell.
+			if ( 0 == (rec->PrevOffset & 0x80000000) )
+				break;
+		} // end of while (true)
+	}
+}
+
+void* MemoryStack::realloc ( void *p, u32 size)
+{
+	// NOTE: Using of realloc() of MemoryStack is highly
+	//       discouraged.
+	//       It always allocates a new cell with given
+	//       'size' and copy the content pointed by 'p' to 
+	//       newly allocated cell.
+	//       This means it could be very space-expensive.
+
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+
+	if ( 0 == size )
+		return NULL;
+
+	void *ptr = alloc(size);
+	if ( xpfLikely ( NULL != ptr) )
+	{
+		if ( NULL != p )
+		{
+			::memcpy(ptr, p, size);
+			free(p);
+		}
+	}
+	return ptr;
+}
+
+void* MemoryStack::calloc ( u32 num, u32 size )
+{
+	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
+	const u32 length = num * size;
+	void *ptr = alloc(length);
+	if ( xpfLikely(NULL != ptr) )
+	{
+		::memset(ptr, 0, length);
+	}
+	return ptr;
+}
+
+
+//===========----- MemoryStack static members ------==============//
+
+u32  MemoryStack::create ( u32 size, u16 slotId )
+{
+	if ( xpfUnlikely(slotId >= MAXSLOT) )
+		return 0;
+
+	destory(slotId);
+	_global_stack_instances[slotId] = new MemoryStack(size);
+	xpfAssert( ( "Unable to create memory bulk.", _global_stack_instances[slotId] != 0 ) );
+	return (_global_stack_instances[slotId])? _global_stack_instances[slotId]->capacity() : 0;
+}
+
+void MemoryStack::destory (u16 slotId)
+{
+	if ( xpfUnlikely(slotId >= MAXSLOT) )
+		return;
+
+	if ( xpfLikely (_global_stack_instances[slotId] != 0) )
+	{
+		delete _global_stack_instances[slotId];
+		_global_stack_instances[slotId] = 0;
+	}
+}
+
+MemoryStack* MemoryStack::instance (u16 slotId)
+{
+	return (xpfUnlikely(slotId >= MAXSLOT))? NULL: _global_stack_instances[slotId];
+}
+
+
+//============---------- MemoryStack -----------================//
+
 
 }; // end of namespace xpf
 
