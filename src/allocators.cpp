@@ -700,6 +700,9 @@ void* MemoryStack::alloc (u32 size)
 		size = (((size >> 3) + 1) << 3);
 	}
 
+	if (size > available())
+		return NULL;
+
 	xpfAssert( ("Expecting Current < Capacity", mDetails->Current < mDetails->Capacity) );
 	if ( xpfLikely(mDetails->Current < mDetails->Capacity) )
 	{
@@ -748,12 +751,11 @@ void MemoryStack::free (void *p)
 		xpfAssert( ("In-using cell", (0 == (rec->PrevOffset & 0x80000000))) );
 
 		// Mark this cell as freed
-		const u32 prev = rec->PrevOffset;
 		rec->PrevOffset |= 0x80000000;
 
 		// For cells who are not at the top of the stack,
 		// just return here.
-		if ( mDetails->Previous != prev )
+		if ( mDetails->Previous != (cell - mDetails->Chunk) )
 			return;
 
 		// For the top-most cell, we need to apply a rollback sequence

@@ -339,8 +339,66 @@ int main()
 			verifyingDeque.pop_front();
 		}
 	}
-
 	MemoryPool::destory();
+
+	MemoryStack::create(1024);
+	MemoryStack *stack = MemoryStack::instance();
+	xpfAssert((stack != 0) && (stack->capacity() == 1024) && (stack->available() == 1016));
+	void *ptrs[5];
+	for (u32 i=0; i<5; i++)
+	{
+		ptrs[i] = stack->alloc(32);
+		xpfAssert(ptrs[i] != 0);
+		for (u32 j=0; j<8; ++j)
+		{
+			*((int*)ptrs[i] + j) = 0xababbadc;
+		}
+	}
+	xpfAssert((stack->used() == 200) && (stack->available() == 816));
+	for (u32 i=0; i<5; i++)
+	{
+		for (u32 j=0; j<8; ++j)
+		{
+			xpfAssert(*((int*)ptrs[i] + j) == 0xababbadc);
+		}
+		stack->free(ptrs[i]);
+		if (i == 4)
+		{
+			u32 u = stack->used();
+			xpfAssert(stack->used() == 0);
+		}
+		else
+		{
+			xpfAssert(stack->used() == 200);
+		}
+	}
+	for (u32 i=0; i<5; i++)
+	{
+		ptrs[i] = stack->alloc(32);
+		xpfAssert(ptrs[i] != 0);
+		for (u32 j=0; j<8; ++j)
+		{
+			*((int*)ptrs[i] + j) = 0xababbadc;
+		}
+	}
+	xpfAssert((stack->used() == 200) && (stack->available() == 816));
+	stack->free(ptrs[3]);
+	xpfAssert(stack->used() == 200);
+	stack->free(ptrs[4]);
+	xpfAssert(stack->used() == 120);
+	ptrs[3] = stack->alloc(192);
+	xpfAssert(stack->used() == 320);
+	ptrs[4] = stack->alloc(2000);
+	xpfAssert(stack->used() == 320);
+	xpfAssert(ptrs[4] == 0);
+	stack->free(ptrs[1]);
+	stack->free(ptrs[2]);
+	stack->free(ptrs[3]);
+	xpfAssert(stack->used() == 40);
+	xpfAssert(stack->hwm() == 320);
+	stack->reset();
+	xpfAssert((stack->used() == 0) && (stack->hwm() == 0));
+	MemoryStack::destory();
 
 	// done sanity test.
 
