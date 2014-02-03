@@ -21,7 +21,7 @@
  *    distribution.
  ********************************************************************************/
 
-#include <xpf/threadevent.h>
+#include <xpf/platform.h>
 
 // Currently only 2 threading models are supported: windows, posix.
 #ifdef XPF_PLATFORM_WINDOWS

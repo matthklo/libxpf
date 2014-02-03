@@ -23,6 +23,12 @@
 
 #include <xpf/threadevent.h>
 
+#ifdef _XPF_THREADEVENT_IMPL_INCLUDED_
+#error Multiple ThreadEvent implementation files included
+#else
+#define _XPF_THREADEVENT_IMPL_INCLUDED_
+#endif
+
 #ifndef XPF_PLATFORM_WINDOWS
 #  error threadevent_windows.hpp shall not build on platforms other than Windows.
 #endif

@@ -23,6 +23,12 @@
 
 #include <xpf/threadlock.h>
 
+#ifdef _XPF_THREADLOCK_IMPL_INCLUDED_
+#error Multiple ThreadLock implementation files included
+#else
+#define _XPF_THREADLOCK_IMPL_INCLUDED_
+#endif
+
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>

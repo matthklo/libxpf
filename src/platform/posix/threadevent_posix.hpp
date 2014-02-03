@@ -23,6 +23,12 @@
 
 #include <xpf/threadevent.h>
 
+#ifdef _XPF_THREADEVENT_IMPL_INCLUDED_
+#error Multiple ThreadEvent implementation files included
+#else
+#define _XPF_THREADEVENT_IMPL_INCLUDED_
+#endif
+
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>

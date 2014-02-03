@@ -23,6 +23,12 @@
 
 #include <xpf/threadlock.h>
 
+#ifdef _XPF_THREADLOCK_IMPL_INCLUDED_
+#error Multiple ThreadLock implementation files included
+#else
+#define _XPF_THREADLOCK_IMPL_INCLUDED_
+#endif
+
 #ifndef XPF_PLATFORM_WINDOWS
 #  error threadlock_windows.hpp shall not build on platforms other than Windows.
 #endif

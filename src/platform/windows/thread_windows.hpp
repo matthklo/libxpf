@@ -24,6 +24,12 @@
 #include <xpf/thread.h>
 #include <xpf/threadevent.h>
 
+#ifdef _XPF_THREAD_IMPL_INCLUDED_
+#error Multiple Thread implementation files included
+#else
+#define _XPF_THREAD_IMPL_INCLUDED_
+#endif
+
 #ifndef XPF_PLATFORM_WINDOWS
 #  error thread_windows.hpp shall not build on platforms other than Windows.
 #endif

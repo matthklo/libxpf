@@ -24,6 +24,12 @@
 #include <xpf/thread.h>
 #include <xpf/threadevent.h>
 
+#ifdef _XPF_THREAD_IMPL_INCLUDED_
+#error Multiple Thread implementation files included
+#else
+#define _XPF_THREAD_IMPL_INCLUDED_
+#endif
+
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
