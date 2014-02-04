@@ -65,14 +65,21 @@ using _STLP_VENDOR_EXCEPT_STD::exception;
 #    endif
 #    define _STLP_EXCEPTION_BASE exception
 
+// Matt: Patch from http://sourceforge.net/p/stlport/patches/105/
+# if defined (_STLP_USE_NO_IOSTREAMS) && !defined (__BUILDING_STLPORT)
+# define _STLP_NAMED_EXCEPTION_INLINE inline
+# else
+# define _STLP_NAMED_EXCEPTION_INLINE
+# endif
+
 class _STLP_CLASS_DECLSPEC __Named_exception : public _STLP_EXCEPTION_BASE {
 public:
-  __Named_exception(const string& __str);
-  __Named_exception(const __Named_exception&);
-  __Named_exception& operator = (const __Named_exception&);
+  _STLP_NAMED_EXCEPTION_INLINE __Named_exception(const string& __str);
+  _STLP_NAMED_EXCEPTION_INLINE __Named_exception(const __Named_exception&);
+  _STLP_NAMED_EXCEPTION_INLINE __Named_exception& operator = (const __Named_exception&);
 
-  const char* what() const _STLP_NOTHROW_INHERENTLY;
-  ~__Named_exception() _STLP_NOTHROW_INHERENTLY;
+  _STLP_NAMED_EXCEPTION_INLINE const char* what() const _STLP_NOTHROW_INHERENTLY;
+  _STLP_NAMED_EXCEPTION_INLINE ~__Named_exception() _STLP_NOTHROW_INHERENTLY;
 
 private:
   enum { _S_bufsize = 256 };
