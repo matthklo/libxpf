@@ -50,6 +50,7 @@ struct NetEndpointDetail
 	{
 		platformInit();
 		reset();
+		Status = NetEndpoint::ESE_INIT;
 
 		// Decide detail socket parameters.
 		int family = AF_UNSPEC;
@@ -102,7 +103,7 @@ struct NetEndpointDetail
 
 		int addrlen = XPF_NETENDPOINT_MAXADDRLEN;
 		int ec = ::getsockname(socket, (struct sockaddr*)&SockAddr, &addrlen);
-		xpfAssert( ("Valid socket provisioning.", ec == 0) );
+		xpfAssert( ("Valid socket provisioning.", (ec == 0) && (addrlen < XPF_NETENDPOINT_MAXADDRLEN)) );
 
 		if (ec == 0)
 		{
@@ -119,7 +120,6 @@ struct NetEndpointDetail
 
 		// abnormal case.
 		close();
-		Status = NetEndpoint::ESE_INVALID;
 	}
 
 	~NetEndpointDetail()
@@ -542,7 +542,7 @@ struct NetEndpointDetail
 	void reset()
 	{
 		Port = 0;
-		Status = NetEndpoint::ESE_INIT;
+		Status = NetEndpoint::ESE_INVALID;
 		Socket = INVALID_SOCKET;
 
 		for (int i=0; i<XPF_NETENDPOINT_MAXADDRLEN; ++i)
