@@ -25,6 +25,7 @@
 #define _XPF_NETIOMUX_HEADER_
 
 #include "platform.h"
+#include "netendpoint.h"
 
 namespace xpf
 {
@@ -32,6 +33,27 @@ namespace xpf
 class NetIoMux
 {
 public:
+	NetIoMux();
+	virtual ~NetIoMux();
+
+	// life cycle
+	void shutdown();
+
+	// For worker threads.
+	void run();
+	bool runOnce();
+
+	// For I/O control
+	void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen /*, callback */);
+	void asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen /*, callback */);
+	void asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen /*, callback */);
+	void asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen /*, callback */);
+	void asyncAccept(const NetEndpoint *ep /*, callback */);
+
+	// For endpoints control
+	NetEndpoint* createEndpoint(NetEndpoint::EndpointTypeEnum type);
+
+	// TODO: should we provide attach/detach functions for a single endpoint?
 
 private:
 	// Non-copyable

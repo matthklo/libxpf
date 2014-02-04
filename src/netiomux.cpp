@@ -21,4 +21,16 @@
  *    distribution.
  ********************************************************************************/ 
 
-#include <xpf/platform.h>
+#include <xpf/netiomux.h>
+
+#if defined(XPF_PLATFORM_WINDOWS)
+#  include "platform/netiomux_iocp.hpp"
+#elif defined(XPF_PLATFORM_LINUX)
+// Use epoll on Linux, Android hosts.
+#  include "platform/netiomux_epoll.hpp"
+#elif defined(XPF_PLATFORM_BSD)
+// Use kqueue on BSD-family hosts (both MacOSX and ios are included)
+#  include "platform/netiomux_kqueue.hpp"
+#else
+#  error NetIoMux is not supported on current platform.
+#endif

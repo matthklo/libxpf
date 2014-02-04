@@ -101,10 +101,11 @@ public:
 	u32          sendTo   ( const Peer *peer, const c8 *buf, u32 len, u32 *errorcode = 0, u32 timeoutMs = 0xFFFFFFFF );
 	void         close    ();
 
-	EndpointStatusEnum getStatus() const;
-	const c8*          getAddress() const;
-	u32                getPort() const;
-	u32                getProtocol() const;
+	inline EndpointStatusEnum getStatus() const;
+	inline const c8*          getAddress() const;
+	inline u32                getPort() const;
+	inline u32                getProtocol() const;
+	inline int                getSocket() const;
 
 	// TODO: getsockopt setsockopt
 

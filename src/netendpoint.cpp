@@ -519,26 +519,6 @@ struct NetEndpointDetail
 		reset();
 	}
 
-	NetEndpoint::EndpointStatusEnum getStatus() const
-	{
-		return Status;
-	}
-
-	const c8* getAddress() const
-	{
-		return Address;
-	}
-
-	u32 getPort() const
-	{
-		return Port;
-	}
-
-	u32 getProtocol() const
-	{
-		return Protocol;
-	}
-
 	void reset()
 	{
 		Port = 0;
@@ -686,22 +666,27 @@ void NetEndpoint::close ()
 
 NetEndpoint::EndpointStatusEnum NetEndpoint::getStatus() const
 {
-	return ((NetEndpointDetail*)pImpl)->getStatus();
+	return ((NetEndpointDetail*)pImpl)->Status;
 }
 
 const c8* NetEndpoint::getAddress() const
 {
-	return ((NetEndpointDetail*)pImpl)->getAddress();
+	return ((NetEndpointDetail*)pImpl)->Address;
 }
 
 u32 NetEndpoint::getPort() const
 {
-	return ((NetEndpointDetail*)pImpl)->getPort();
+	return ((NetEndpointDetail*)pImpl)->Port;
 }
 
 u32 NetEndpoint::getProtocol() const
 {
-	return ((NetEndpointDetail*)pImpl)->getProtocol();
+	return ((NetEndpointDetail*)pImpl)->Protocol;
+}
+
+int NetEndpoint::getSocket() const
+{
+	return ((NetEndpointDetail*)pImpl)->Socket;
 }
 
 }; // end of namespace xpf
