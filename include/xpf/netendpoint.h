@@ -116,15 +116,19 @@ public:
 	inline u32                getProtocol() const;
 	inline s32                getSocket() const;
 
+	inline vptr               getPlatformData() const { return pPlatformData; }
+	inline vptr               setPlatformData(vptr newdata) { vptr olddata = pPlatformData; pPlatformData = newdata; return olddata; }
+
 	// TODO: getsockopt setsockopt
 
 private:
 	NetEndpoint();
 	// Non-copyable
-	NetEndpoint(const NetEndpoint& that);
-	NetEndpoint& operator = (const NetEndpoint& that);
+	NetEndpoint(const NetEndpoint& that) {}
+	NetEndpoint& operator = (const NetEndpoint& that) {}
 
 	vptr pImpl;
+	vptr pPlatformData;
 };
 
 }; // end of namespace xpf

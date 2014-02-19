@@ -26,6 +26,7 @@
 
 #include "platform.h"
 #include "netendpoint.h"
+#include "delegate.h"
 
 namespace xpf
 {
@@ -33,6 +34,20 @@ namespace xpf
 class NetIoMux
 {
 public:
+	enum NetIoMuxRunningStaus
+	{
+		NIMRS_NORMAL = 0,
+		NIMRS_TIMEOUT,
+		NIMRS_SHUTDOWN,
+	};
+
+	typedef Delegate<void(u32, const NetEndpoint*, c8*, u32)> RecvCallback; // ec, ep, buf, bytes
+	typedef Delegate<void(u32, const NetEndpoint*, NetEndpoint::Peer*, c8*, u32)> RecvFromCallback; // ec, ep, peer, buf, bytes
+	typedef Delegate<void(u32, const NetEndpoint*, const c8*, u32)> SendCallback; // ec, ep, buf, bytes
+	typedef Delegate<void(u32, const NetEndpoint*, const NetEndpoint::Peer*, const c8*, u32)> SendToCallback; // ec, ep, peer, buf, bytes
+	typedef Delegate<void(u32, const NetEndpoint*, NetEndpoint*)> AcceptCallback; // ec, ep, accepted ep
+	typedef Delegate<void(u32, NetEndpoint*)> ConnectCallback; // ec, connected ep
+
 	NetIoMux();
 	virtual ~NetIoMux();
 
@@ -40,15 +55,16 @@ public:
 	void shutdown();
 
 	// For worker threads.
-	void run();
-	bool runOnce();
+	void                 run();
+	NetIoMuxRunningStaus runOnce(u32 timeoutMs = 0xffffffff);
 
 	// For I/O control
-	void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen /*, callback */);
-	void asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen /*, callback */);
-	void asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen /*, callback */);
-	void asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen /*, callback */);
-	void asyncAccept(const NetEndpoint *ep /*, callback */);
+	void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb);
+	void asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb);
+	void asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb);
+	void asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb);
+	void asyncAccept(const NetEndpoint *ep, AcceptCallback cb);
+	void asyncConnect(const c8 *host, u32 port, ConnectCallback cb);
 
 	// For endpoints control
 	NetEndpoint* createEndpoint(NetEndpoint::EndpointTypeEnum type);
@@ -57,8 +73,8 @@ public:
 
 private:
 	// Non-copyable
-	NetIoMux(const NetIoMux& that);
-	NetIoMux& operator = (const NetIoMux& that);
+	NetIoMux(const NetIoMux& that) {}
+	NetIoMux& operator = (const NetIoMux& that) {}
 
 	vptr pImpl;
 };

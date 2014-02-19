@@ -523,6 +523,7 @@ struct NetEndpointDetail
 
 NetEndpoint::NetEndpoint()
 	: pImpl(0)
+	, pPlatformData(0)
 {
 }
 
