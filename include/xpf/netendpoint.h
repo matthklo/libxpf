@@ -66,16 +66,24 @@ public:
 		EEE_LISTEN,
 		EEE_RESOLVE,
 		EEE_ACCEPT,
+		EEE_SHUTDOWN,
 		EEE_TIMEOUT,
 
 		EEE_MAX,
 		EEE_UNKNOWN,
 	};
 
+	enum EndpointShutdownDir
+	{
+		ESD_READ = 0,
+		ESD_WRITE,
+		ESD_BOTH,
+	};
+
 	struct Peer
 	{
-		c8 Data[XPF_NETENDPOINT_MAXADDRLEN];
-		int Length;
+		c8  Data[XPF_NETENDPOINT_MAXADDRLEN];
+		s32 Length;
 	};
 
 	static const u32 EndpointProtocolTCP  = 0x1;
@@ -93,19 +101,20 @@ public:
 
 	// Incoming endpoint only
 	bool         listen (const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
-	NetEndpoint* accept (u32 *errorcode = 0, u32 timeoutMs = 0xFFFFFFFF);
+	NetEndpoint* accept (u32 *errorcode = 0);
 
-	u32          recv     ( c8 *buf, u32 len, u32 *errorcode = 0, u32 timeoutMs = 0xFFFFFFFF );
-	u32          recvFrom ( Peer *peer, c8 *buf, u32 len, u32 *errorcode = 0, u32 timeoutMs = 0xFFFFFFFF );
-	u32          send     ( const c8 *buf, u32 len, u32 *errorcode = 0, u32 timeoutMs = 0xFFFFFFFF );
-	u32          sendTo   ( const Peer *peer, const c8 *buf, u32 len, u32 *errorcode = 0, u32 timeoutMs = 0xFFFFFFFF );
-	void         close    ();
+	s32          recv     ( c8 *buf, s32 len, u32 *errorcode = 0);
+	s32          recvFrom ( Peer *peer, c8 *buf, s32 len, u32 *errorcode = 0);
+	s32          send     ( const c8 *buf, s32 len, u32 *errorcode = 0);
+	s32          sendTo   ( const Peer *peer, const c8 *buf, s32 len, u32 *errorcode = 0);
+	void         shutdown ( EndpointShutdownDir dir, u32 *errorcode = 0);
+	void         close    ( );
 
 	inline EndpointStatusEnum getStatus() const;
 	inline const c8*          getAddress() const;
 	inline u32                getPort() const;
 	inline u32                getProtocol() const;
-	inline int                getSocket() const;
+	inline s32                getSocket() const;
 
 	// TODO: getsockopt setsockopt
 

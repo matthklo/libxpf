@@ -131,8 +131,11 @@ struct NetEndpointDetail
 	{
 		bool ret = false;
 
+		if (0 == addr)
+			addr = "localhost";
+
 		xpfAssert( ("Stale endpoint.", NetEndpoint::ESE_INIT == Status) );
-		if ( (0 == addr) || (0 == port) || (NetEndpoint::ESE_INIT != Status) )
+		if ( (0 == port) || (NetEndpoint::ESE_INIT != Status) )
 		{
 			if (errorcode)
 				*errorcode = (u32)NetEndpoint::EEE_INVALID_OP;
@@ -147,7 +150,7 @@ struct NetEndpointDetail
 		hint.ai_family = (Protocol & NetEndpoint::EndpointProtocolIPv6)? AF_INET6 : AF_INET;
 		hint.ai_socktype = (Protocol & NetEndpoint::EndpointProtocolTCP)? SOCK_STREAM : SOCK_DGRAM;
 		hint.ai_protocol = (Protocol & NetEndpoint::EndpointProtocolTCP)? IPPROTO_TCP : IPPROTO_UDP;
-		hint.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+		hint.ai_flags = (AF_INET6 == hint.ai_family) ? AI_V4MAPPED : 0;
 
 		int ec = ::getaddrinfo(addr, portStr.c_str(), &hint, &results);
 		if (0 != ec)
@@ -211,9 +214,6 @@ struct NetEndpointDetail
 			return false;
 		}
 
-		if (0 == addr)
-			addr = "";
-
 		string portStr = lexical_cast<c8>(port);
 
 		// perform getaddrinfo() to prepare proper sockaddr data.
@@ -222,7 +222,12 @@ struct NetEndpointDetail
 		hint.ai_family = (Protocol & NetEndpoint::EndpointProtocolIPv6)? AF_INET6 : AF_INET;
 		hint.ai_socktype = (Protocol & NetEndpoint::EndpointProtocolTCP)? SOCK_STREAM : SOCK_DGRAM;
 		hint.ai_protocol = (Protocol & NetEndpoint::EndpointProtocolTCP)? IPPROTO_TCP : IPPROTO_UDP;
-		hint.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+		hint.ai_flags = 0;
+
+		if (0 == addr)
+			hint.ai_flags |= AI_PASSIVE;
+		if (AF_INET6 == hint.ai_family)
+			hint.ai_flags |= AI_V4MAPPED;
 
 		int ec = ::getaddrinfo(addr, portStr.c_str(), &hint, &results);
 		if (0 != ec)
@@ -270,7 +275,7 @@ struct NetEndpointDetail
 	}
 
 	// TCP only.
-	NetEndpointDetail* accept (u32 *errorcode, u32 timeoutMs)
+	NetEndpointDetail* accept (u32 *errorcode)
 	{
 		bool isTcp = ( (Protocol & NetEndpoint::EndpointProtocolTCP) != 0 );
 		xpfAssert( ("Expecting TCP endpoint.", isTcp) );
@@ -280,25 +285,6 @@ struct NetEndpointDetail
 			if (errorcode)
 				*errorcode = (u32) NetEndpoint::EEE_INVALID_OP;
 			return 0;
-		}
-
-		if ( 0xFFFFFFFF != timeoutMs )
-		{
-			struct fd_set fds;
-			struct timeval t;
-			
-			FD_ZERO(&fds);
-			FD_SET(Socket, &fds);
-
-			t.tv_sec = timeoutMs / 1000;
-			t.tv_usec = (timeoutMs % 1000) * 1000;
-			int ec = ::select(Socket+1, &fds, 0, 0, &t);
-			if ( ec <= 0 )
-			{
-				if (errorcode)
-					*errorcode = (u32) NetEndpoint::EEE_TIMEOUT;
-				return 0;
-			}
 		}
 
 		int acceptedSocket = ::accept(Socket, 0, 0);
@@ -317,7 +303,7 @@ struct NetEndpointDetail
 	}
 
 	// TCP and UDP
-	u32 recv (c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs)
+	s32 recv (c8 *buf, s32 len, u32 *errorcode)
 	{
 		bool isTcp = ((Protocol & NetEndpoint::EndpointProtocolTCP) != 0);
 		if (isTcp)
@@ -337,26 +323,7 @@ struct NetEndpointDetail
 			return 0;
 		}
 
-		if ( 0xFFFFFFFF != timeoutMs )
-		{
-			struct fd_set fds;
-			struct timeval t;
-			
-			FD_ZERO(&fds);
-			FD_SET(Socket, &fds);
-
-			t.tv_sec = timeoutMs / 1000;
-			t.tv_usec = (timeoutMs % 1000) * 1000;
-			int ec = ::select(Socket+1, &fds, 0, 0, &t);
-			if ( ec <= 0 )
-			{
-				if (errorcode)
-					*errorcode = (u32) NetEndpoint::EEE_TIMEOUT;
-				return 0;
-			}
-		}
-
-		int cnt = ::recv(Socket, buf, len, 0);
+		s32 cnt = ::recv(Socket, buf, len, 0);
 		if (cnt < 0)
 		{
 			if (errorcode)
@@ -366,11 +333,11 @@ struct NetEndpointDetail
 
 		if (errorcode)
 			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
-		return (u32)cnt;
+		return cnt;
 	}
 
 	// UDP only
-	u32 recvFrom (NetEndpoint::Peer *peer, c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs)
+	s32 recvFrom (NetEndpoint::Peer *peer, c8 *buf, s32 len, u32 *errorcode)
 	{
 		bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
 		xpfAssert( ("Expecting a valid peer.", peer != 0) );
@@ -383,27 +350,8 @@ struct NetEndpointDetail
 			return 0;
 		}
 
-		if ( 0xFFFFFFFF != timeoutMs )
-		{
-			struct fd_set fds;
-			struct timeval t;
-			
-			FD_ZERO(&fds);
-			FD_SET(Socket, &fds);
-
-			t.tv_sec = timeoutMs / 1000;
-			t.tv_usec = (timeoutMs % 1000) * 1000;
-			int ec = ::select(Socket+1, &fds, 0, 0, &t);
-			if ( ec <= 0 )
-			{
-				if (errorcode)
-					*errorcode = (u32) NetEndpoint::EEE_TIMEOUT;
-				return 0;
-			}
-		}
-
 		peer->Length = XPF_NETENDPOINT_MAXADDRLEN;
-		int cnt = ::recvfrom(Socket, buf, len, 0, (struct sockaddr*)&peer->Data[0], &peer->Length);
+		s32 cnt = ::recvfrom(Socket, buf, len, 0, (struct sockaddr*)&peer->Data[0], &peer->Length);
 		if (cnt < 0)
 		{
 			if (errorcode)
@@ -413,11 +361,11 @@ struct NetEndpointDetail
 
 		if (errorcode)
 			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
-		return (u32) cnt;
+		return cnt;
 	}
 
 	// TCP and UDP
-	u32 send (const c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs)
+	s32 send (const c8 *buf, s32 len, u32 *errorcode)
 	{
 		xpfAssert( ("Not a connected endpoint.", Status == NetEndpoint::ESE_CONNECTED) );
 		if (Status != NetEndpoint::ESE_CONNECTED)
@@ -427,26 +375,7 @@ struct NetEndpointDetail
 			return 0;
 		}
 
-		if ( 0xFFFFFFFF != timeoutMs )
-		{
-			struct fd_set fds;
-			struct timeval t;
-			
-			FD_ZERO(&fds);
-			FD_SET(Socket, &fds);
-
-			t.tv_sec = timeoutMs / 1000;
-			t.tv_usec = (timeoutMs % 1000) * 1000;
-			int ec = ::select(Socket+1, 0, &fds, 0, &t);
-			if ( ec <= 0 )
-			{
-				if (errorcode)
-					*errorcode = (u32) NetEndpoint::EEE_TIMEOUT;
-				return 0;
-			}
-		}
-
-		int cnt = ::send(Socket, buf, len, 0);
+		s32 cnt = ::send(Socket, buf, len, 0);
 		if (cnt < 0)
 		{
 			if (errorcode)
@@ -456,13 +385,13 @@ struct NetEndpointDetail
 
 		if (errorcode)
 			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
-		return (u32)cnt;
+		return cnt;
 	}
 
 	// UDP only
-	u32 sendTo (const NetEndpoint::Peer *peer, const c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs)
+	s32 sendTo (const NetEndpoint::Peer *peer, const c8 *buf, s32 len, u32 *errorcode)
 	{
-		bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
+		const bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
 		xpfAssert( ("Expecting a valid peer.", peer != 0) );
 		xpfAssert( ("Expecting an UDP endpoint.", isUdp) );
 		xpfAssert( ("Not a connected endpoint.", Status == NetEndpoint::ESE_CONNECTED) );
@@ -473,26 +402,7 @@ struct NetEndpointDetail
 			return 0;
 		}
 
-		if ( 0xFFFFFFFF != timeoutMs )
-		{
-			struct fd_set fds;
-			struct timeval t;
-			
-			FD_ZERO(&fds);
-			FD_SET(Socket, &fds);
-
-			t.tv_sec = timeoutMs / 1000;
-			t.tv_usec = (timeoutMs % 1000) * 1000;
-			int ec = ::select(Socket+1, 0, &fds, 0, &t);
-			if ( ec <= 0 )
-			{
-				if (errorcode)
-					*errorcode = (u32) NetEndpoint::EEE_TIMEOUT;
-				return 0;
-			}
-		}
-
-		int cnt = ::sendto(Socket, buf, len, 0, (const struct sockaddr*)&peer->Data[0], peer->Length);
+		s32 cnt = ::sendto(Socket, buf, len, 0, (const struct sockaddr*)&peer->Data[0], peer->Length);
 		if (cnt < 0)
 		{
 			if (errorcode)
@@ -502,7 +412,45 @@ struct NetEndpointDetail
 
 		if (errorcode)
 			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
-		return (u32)cnt;
+		return cnt;
+	}
+
+	void shutdown(NetEndpoint::EndpointShutdownDir dir, u32 *errorcode)
+	{
+		s32 shutdownFlag = 0;
+		switch (dir)
+		{
+#ifdef XPF_PLATFORM_WINDOWS
+		case NetEndpoint::ESD_READ:
+			shutdownFlag = SD_RECEIVE;
+			break;
+		case SD_SEND:
+			shutdownFlag = SD_SEND;
+			break;
+		case SD_BOTH:
+			shutdownFlag = SD_BOTH;
+			break;
+#else
+		case NetEndpoint::ESD_READ:
+			shutdownFlag = SHUT_RD;
+			break;
+		case SD_SEND:
+			shutdownFlag = SHUT_WR;
+			break;
+		case SD_BOTH:
+			shutdownFlag = SHUT_RDWR;
+			break;
+#endif
+		default:
+			xpfAssert( ("Invalid shutdown flag.", false) );
+			if (errorcode)
+				*errorcode = (u32)NetEndpoint::EEE_INVALID_OP;
+			return;
+		}
+
+		s32 ec = ::shutdown(Socket, shutdownFlag);
+		if (errorcode)
+			*errorcode = (0 == ec) ? (u32)NetEndpoint::EEE_SUCCESS : (u32) NetEndpoint::EEE_SHUTDOWN;
 	}
 
 	void close ()
@@ -510,6 +458,7 @@ struct NetEndpointDetail
 		Status = NetEndpoint::ESE_CLOSING;
 		if (Socket != INVALID_SOCKET)
 		{
+			shutdown(NetEndpoint::ESD_BOTH, 0);
 #ifdef XPF_PLATFORM_WINDOWS
 			::closesocket(Socket);
 #else
@@ -566,7 +515,7 @@ struct NetEndpointDetail
 	u32                              Port;
 	const u32                        Protocol;
 	NetEndpoint::EndpointStatusEnum  Status;
-	int                              Socket;
+	s32                              Socket;
 }; // end of struct NetEndpointDetail
 
 
@@ -595,16 +544,13 @@ NetEndpoint* NetEndpoint::createEndpoint(EndpointTypeEnum type, u32 protocol, co
 {
 	NetEndpoint *ret = 0;
 
-	if (0 == addr)
-		addr = "";
-
 	switch (type)
 	{
-	case ETE_INCOMING:
+	case ETE_OUTGOING:
 		ret = new NetEndpoint(protocol);
 		ret->connect(addr, port, errorcode);
 		break;
-	case ETE_OUTGOING:
+	case ETE_INCOMING:
 		ret = new NetEndpoint(protocol);
 		ret->listen(addr, port, errorcode, backlog);
 		break;
@@ -626,9 +572,9 @@ bool NetEndpoint::listen (const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
 	return ((NetEndpointDetail*)pImpl)->listen(addr, port, errorcode, backlog);
 }
 
-NetEndpoint* NetEndpoint::accept (u32 *errorcode, u32 timeoutMs)
+NetEndpoint* NetEndpoint::accept (u32 *errorcode)
 {
-	NetEndpointDetail *peerDetail = ((NetEndpointDetail*)pImpl)->accept(errorcode, timeoutMs);
+	NetEndpointDetail *peerDetail = ((NetEndpointDetail*)pImpl)->accept(errorcode);
 	if (peerDetail == 0)
 	{
 		return 0;
@@ -639,24 +585,29 @@ NetEndpoint* NetEndpoint::accept (u32 *errorcode, u32 timeoutMs)
 	return peer;
 }
 
-u32 NetEndpoint::recv ( c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs )
+s32 NetEndpoint::recv ( c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->recv(buf, len, errorcode, timeoutMs);
+	return ((NetEndpointDetail*)pImpl)->recv(buf, len, errorcode);
 }
 
-u32 NetEndpoint::recvFrom ( Peer *peer, c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs )
+s32 NetEndpoint::recvFrom ( Peer *peer, c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->recvFrom(peer, buf, len, errorcode, timeoutMs);
+	return ((NetEndpointDetail*)pImpl)->recvFrom(peer, buf, len, errorcode);
 }
 
-u32 NetEndpoint::send ( const c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs )
+s32 NetEndpoint::send ( const c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->send(buf, len, errorcode, timeoutMs);
+	return ((NetEndpointDetail*)pImpl)->send(buf, len, errorcode);
 }
 
-u32 NetEndpoint::sendTo ( const Peer *peer, const c8 *buf, u32 len, u32 *errorcode, u32 timeoutMs )
+s32 NetEndpoint::sendTo ( const Peer *peer, const c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->sendTo(peer, buf, len, errorcode, timeoutMs);
+	return ((NetEndpointDetail*)pImpl)->sendTo(peer, buf, len, errorcode);
+}
+
+void NetEndpoint::shutdown(NetEndpoint::EndpointShutdownDir dir, u32 *errorcode)
+{
+	return ((NetEndpointDetail*)pImpl)->shutdown(dir, errorcode);
 }
 
 void NetEndpoint::close ()
