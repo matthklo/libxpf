@@ -53,11 +53,11 @@ public:
 		RS_DISABLED,
 	};
 
-	typedef Delegate<void(u32, const NetEndpoint*, c8*, u32)> RecvCallback; // ec, ep, buf, bytes
-	typedef Delegate<void(u32, const NetEndpoint*, NetEndpoint::Peer*, c8*, u32)> RecvFromCallback; // ec, ep, peer, buf, bytes
-	typedef Delegate<void(u32, const NetEndpoint*, const c8*, u32)> SendCallback; // ec, ep, buf, bytes
-	typedef Delegate<void(u32, const NetEndpoint*, const NetEndpoint::Peer*, const c8*, u32)> SendToCallback; // ec, ep, peer, buf, bytes
-	typedef Delegate<void(u32, const NetEndpoint*, NetEndpoint*)> AcceptCallback; // ec, ep, accepted ep
+	typedef Delegate<void(u32, NetEndpoint*, c8*, u32)> RecvCallback; // ec, ep, buf, bytes
+	typedef Delegate<void(u32, NetEndpoint*, NetEndpoint::Peer*, c8*, u32)> RecvFromCallback; // ec, ep, peer, buf, bytes
+	typedef Delegate<void(u32, NetEndpoint*, const c8*, u32)> SendCallback; // ec, ep, buf, bytes
+	typedef Delegate<void(u32, NetEndpoint*, const NetEndpoint::Peer*, const c8*, u32)> SendToCallback; // ec, ep, peer, buf, bytes
+	typedef Delegate<void(u32, NetEndpoint*, NetEndpoint*)> AcceptCallback; // ec, ep, accepted ep
 	typedef Delegate<void(u32, NetEndpoint*)> ConnectCallback; // ec, connected ep
 
 	NetIoMux();
@@ -72,16 +72,17 @@ public:
 	RunningStaus runOnce(u32 timeoutMs = 0xffffffff);
 
 	// For I/O control
-	void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb);
-	void asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb);
-	void asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb);
-	void asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb);
-	void asyncAccept(const NetEndpoint *ep, AcceptCallback cb);
-	void asyncConnect(const c8 *host, u32 port, ConnectCallback cb);
+	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb);
+	void asyncRecvFrom(NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb);
+	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb);
+	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb);
+	void asyncAccept(NetEndpoint *ep, AcceptCallback cb);
+	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, ConnectCallback cb);
 
-	// Attach/Detach private data for endpoint to fit netiomux using.
-	static bool provision(NetEndpoint *ep);
-	static bool unprovision(NetEndpoint *ep);
+	// Join/depart the endpoint to/from netiomux.
+	bool join(NetEndpoint *ep);
+	bool depart(NetEndpoint *ep);
+
 	static const char * getMultiplexerType(EPlatformMultiplexer &epm);
 
 private:

@@ -65,38 +65,39 @@ namespace xpf
 			return NetIoMux::RS_NORMAL;
 		}
 
-		void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvCallback cb)
+		void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvCallback cb)
 		{
 
 		}
 
-		void asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
+		void asyncRecvFrom(NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
 		{
 
 		}
 
-		void asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMux::SendCallback cb)
+		void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMux::SendCallback cb)
 		{
 
 		}
 
-		void asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMux::SendToCallback cb)
+		void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMux::SendToCallback cb)
 		{
 
 		}
 
-		void asyncAccept(const NetEndpoint *ep, NetIoMux::AcceptCallback cb)
+		void asyncAccept(NetEndpoint *ep, NetIoMux::AcceptCallback cb)
 		{
 
 		}
 
-		void asyncConnect(const c8 *host, u32 port, NetIoMux::ConnectCallback cb)
+		void asyncConnect(NetEndpoint *ep, c8 *host, u32 port, NetIoMux::ConnectCallback cb)
 		{
 
 		}
 
-		static bool provision(NetEndpoint *ep)
+		bool join(NetEndpoint *ep)
 		{
+			// TODO: set O_NONBLOCK
 			if (ep->getAsyncContext() != 0)
 				return false;
 
@@ -104,8 +105,9 @@ namespace xpf
 			return true;
 		}
 
-		static bool unprovision(NetEndpoint *ep)
+		bool depart(NetEndpoint *ep)
 		{
+			// TODO: unset O_NONBLOCK
 			KqueueAsyncContext *ctx = (KqueueAsyncContext*)((ep) ? ep->getAsyncContext() : 0);
 			if (ctx)
 			{

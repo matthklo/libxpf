@@ -31,22 +31,17 @@
 namespace xpf
 {
 
+class NetEndpointImpl;
+
 class XPF_API NetEndpoint
 {
 public:
-	enum EConnDir
-	{
-		ECD_INCOMING = 0,
-		ECD_OUTGOING,
-
-		ECD_MAX,
-		ECD_UNKNOWN,
-	};
-
 	enum EStatus
 	{
 		ESTAT_INIT = 0,
 		ESTAT_LISTENING,
+		ESTAT_ACCEPTING,
+		ESTAT_CONNECTING,
 		ESTAT_CONNECTED,
 		ESTAT_CLOSING,
 		ESTAT_INVALID,
@@ -86,12 +81,16 @@ public:
 		s32 Length;
 	};
 
-	static const u32 EndpointProtocolTCP  = 0x1;
-	static const u32 EndpointProtocolUDP  = 0x2;
-	static const u32 EndpointProtocolIPv4 = 0x100;
-	static const u32 EndpointProtocolIPv6 = 0x200;
+	static const u32 ProtocolTCP  = 0x1;
+	static const u32 ProtocolUDP  = 0x2;
+	static const u32 ProtocolIPv4 = 0x100;
+	static const u32 ProtocolIPv6 = 0x200;
 
-	static NetEndpoint* createEndpoint(EConnDir type, u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
+	static NetEndpoint* createEndpoint(u32 protocol);
+	static NetEndpoint* createEndpoint(u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
+	static void         freeEndpoint(NetEndpoint* ep);
+	static bool         resolvePeer(u32 protocol, Peer &peer, const c8 * host, const c8 * serv, u32 port = 0);
+	static bool         platformInit();
 
 	explicit NetEndpoint(u32 protocol);
 	virtual ~NetEndpoint();
@@ -123,12 +122,18 @@ public:
 
 private:
 	NetEndpoint();
+	NetEndpoint(u32 protocol, int socket, EStatus status);
+
 	// Non-copyable
 	NetEndpoint(const NetEndpoint& that) {}
 	NetEndpoint& operator = (const NetEndpoint& that) { return *this; }
 
-	vptr pImpl;
-	vptr pAsyncContext;
+	inline void setStatus(EStatus status);
+
+	NetEndpointImpl *pImpl;
+	vptr             pAsyncContext;
+
+	friend class NetIoMuxImpl;
 };
 
 }; // end of namespace xpf

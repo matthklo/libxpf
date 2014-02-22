@@ -43,13 +43,18 @@
 namespace xpf
 {
 
-struct NetEndpointDetail
+class NetEndpointImpl
 {
-	explicit NetEndpointDetail(u32 protocol)
+public:
+
+	explicit NetEndpointImpl(u32 protocol)
 		: Protocol(protocol)
 	{
-		platformInit();
 		reset();
+
+		if (!platformInit())
+			return;
+		
 		Status = NetEndpoint::ESTAT_INIT;
 
 		// Decide detail socket parameters.
@@ -57,9 +62,9 @@ struct NetEndpointDetail
 		int type = 0;
 		int proto = 0;
 
-		if (protocol & NetEndpoint::EndpointProtocolIPv4)
+		if (protocol & NetEndpoint::ProtocolIPv4)
 			family = AF_INET;
-		else if (protocol & NetEndpoint::EndpointProtocolIPv6)
+		else if (protocol & NetEndpoint::ProtocolIPv6)
 			family = AF_INET6;
 
 		xpfAssert( ("Invalid procotol specified.", AF_UNSPEC != family) );
@@ -69,12 +74,12 @@ struct NetEndpointDetail
 			return;
 		}
 
-		if (protocol & NetEndpoint::EndpointProtocolTCP)
+		if (protocol & NetEndpoint::ProtocolTCP)
 		{
 			type = SOCK_STREAM;
 			proto = IPPROTO_TCP;
 		}
-		else if (protocol & NetEndpoint::EndpointProtocolUDP)
+		else if (protocol & NetEndpoint::ProtocolUDP)
 		{
 			type = SOCK_DGRAM;
 			proto = IPPROTO_UDP;
@@ -94,7 +99,7 @@ struct NetEndpointDetail
 		}
 	}
 
-	NetEndpointDetail(u32 protocol, int socket, NetEndpoint::EStatus status = NetEndpoint::ESTAT_CONNECTED)
+	NetEndpointImpl(u32 protocol, int socket, NetEndpoint::EStatus status = NetEndpoint::ESTAT_CONNECTED)
 		: Protocol(protocol)
 	{
 		reset();
@@ -122,7 +127,7 @@ struct NetEndpointDetail
 		close();
 	}
 
-	~NetEndpointDetail()
+	~NetEndpointImpl()
 	{
 		close();
 	}
@@ -142,45 +147,31 @@ struct NetEndpointDetail
 			return false;
 		}
 
-		string portStr = lexical_cast<c8>(port);
-
-		// perform getaddrinfo() to prepare proper sockaddr data.
-		struct addrinfo hint = {0};
-		struct addrinfo *results;
-		hint.ai_family = (Protocol & NetEndpoint::EndpointProtocolIPv6)? AF_INET6 : AF_INET;
-		hint.ai_socktype = (Protocol & NetEndpoint::EndpointProtocolTCP)? SOCK_STREAM : SOCK_DGRAM;
-		hint.ai_protocol = (Protocol & NetEndpoint::EndpointProtocolTCP)? IPPROTO_TCP : IPPROTO_UDP;
-		hint.ai_flags = (AF_INET6 == hint.ai_family) ? AI_V4MAPPED : 0;
-
-		int ec = ::getaddrinfo(addr, portStr.c_str(), &hint, &results);
-		if (0 != ec)
+		NetEndpoint::Peer peer;
+		if (!NetEndpoint::resolvePeer(Protocol, peer, addr, 0, port))
 		{
-			if (errorcode)
+			if (errorcode) 
 				*errorcode = (u32)NetEndpoint::EE_RESOLVE;
 			return false;
 		}
 
 		xpfAssert( ("Expecting valid results from getaddrinfo().", 
-			(results != 0) && (results->ai_addrlen > 0) && (results->ai_addrlen <= XPF_NETENDPOINT_MAXADDRLEN)) );
+			(peer.Length > 0) && (peer.Length <= XPF_NETENDPOINT_MAXADDRLEN)));
 
 		do
 		{
 			// Always use the 1st record in results.
-			ec = ::connect(Socket, results->ai_addr, results->ai_addrlen);
+			int ec = ::connect(Socket, (const sockaddr*)peer.Data, peer.Length);
 			if (0 != ec)
 				break;
 
-			c8 *sockaddrdata = (c8*)results->ai_addr;
-			for (u32 i=0; i<results->ai_addrlen; ++i)
-			{
-				SockAddr[i] = sockaddrdata[i];
-			}
+			std::memcpy(SockAddr, peer.Data, peer.Length);
 
 			ret = true;
 			Status = NetEndpoint::ESTAT_CONNECTED;
 			Port = port;
 
-			ec = ::getnameinfo(results->ai_addr, results->ai_addrlen, Address, XPF_NETENDPOINT_MAXADDRLEN,
+			ec = ::getnameinfo((const sockaddr*)peer.Data, peer.Length, Address, XPF_NETENDPOINT_MAXADDRLEN,
 					0, 0, NI_NUMERICHOST);
 			if (0 != ec)
 			{
@@ -197,7 +188,6 @@ struct NetEndpointDetail
 
 		if (errorcode)
 			*errorcode = (ret)? (u32)NetEndpoint::EE_SUCCESS : (u32)NetEndpoint::EE_CONNECT;
-		freeaddrinfo(results);
 		return ret;
 	}
 
@@ -219,9 +209,9 @@ struct NetEndpointDetail
 		// perform getaddrinfo() to prepare proper sockaddr data.
 		struct addrinfo hint = {0};
 		struct addrinfo *results;
-		hint.ai_family = (Protocol & NetEndpoint::EndpointProtocolIPv6)? AF_INET6 : AF_INET;
-		hint.ai_socktype = (Protocol & NetEndpoint::EndpointProtocolTCP)? SOCK_STREAM : SOCK_DGRAM;
-		hint.ai_protocol = (Protocol & NetEndpoint::EndpointProtocolTCP)? IPPROTO_TCP : IPPROTO_UDP;
+		hint.ai_family = (Protocol & NetEndpoint::ProtocolIPv6)? AF_INET6 : AF_INET;
+		hint.ai_socktype = (Protocol & NetEndpoint::ProtocolTCP)? SOCK_STREAM : SOCK_DGRAM;
+		hint.ai_protocol = (Protocol & NetEndpoint::ProtocolTCP)? IPPROTO_TCP : IPPROTO_UDP;
 		hint.ai_flags = 0;
 
 		if (0 == addr)
@@ -251,7 +241,7 @@ struct NetEndpointDetail
 			}
 
 			// for TCP endpoint, need to do listen().
-			if ( (Protocol & NetEndpoint::EndpointProtocolTCP) != 0 )
+			if ( (Protocol & NetEndpoint::ProtocolTCP) != 0 )
 			{
 				ec = ::listen(Socket, backlog);
 				if (0 != ec)
@@ -275,9 +265,9 @@ struct NetEndpointDetail
 	}
 
 	// TCP only.
-	NetEndpointDetail* accept (u32 *errorcode)
+	NetEndpointImpl* accept (u32 *errorcode)
 	{
-		bool isTcp = ( (Protocol & NetEndpoint::EndpointProtocolTCP) != 0 );
+		bool isTcp = ( (Protocol & NetEndpoint::ProtocolTCP) != 0 );
 		xpfAssert( ("Expecting TCP endpoint.", isTcp) );
 		xpfAssert(("Not a listening endpoint.", Status == NetEndpoint::ESTAT_LISTENING));
 		if (!isTcp || (Status != NetEndpoint::ESTAT_LISTENING))
@@ -296,7 +286,7 @@ struct NetEndpointDetail
 			return 0;
 		}
 
-		NetEndpointDetail *peer = new NetEndpointDetail(Protocol, acceptedSocket);
+		NetEndpointImpl *peer = new NetEndpointImpl(Protocol, acceptedSocket);
 		if (errorcode)
 			*errorcode = (u32) NetEndpoint::EE_SUCCESS;
 		return peer;
@@ -305,7 +295,7 @@ struct NetEndpointDetail
 	// TCP and UDP
 	s32 recv (c8 *buf, s32 len, u32 *errorcode)
 	{
-		bool isTcp = ((Protocol & NetEndpoint::EndpointProtocolTCP) != 0);
+		bool isTcp = ((Protocol & NetEndpoint::ProtocolTCP) != 0);
 		if (isTcp)
 		{
 			xpfAssert(("Not a connected TCP endpoint.", Status == NetEndpoint::ESTAT_CONNECTED));
@@ -339,7 +329,7 @@ struct NetEndpointDetail
 	// UDP only
 	s32 recvFrom (NetEndpoint::Peer *peer, c8 *buf, s32 len, u32 *errorcode)
 	{
-		bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
+		bool isUdp = ((Protocol & NetEndpoint::ProtocolUDP) != 0);
 		xpfAssert( ("Expecting a valid peer.", peer != 0) );
 		xpfAssert( ("Expecting an UDP endpoint.", isUdp) );
 		xpfAssert(("Neither a connected nor a listening endpoint.", (Status == NetEndpoint::ESTAT_CONNECTED || Status == NetEndpoint::ESTAT_LISTENING)));
@@ -391,7 +381,7 @@ struct NetEndpointDetail
 	// UDP only
 	s32 sendTo (const NetEndpoint::Peer *peer, const c8 *buf, s32 len, u32 *errorcode)
 	{
-		const bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
+		const bool isUdp = ((Protocol & NetEndpoint::ProtocolUDP) != 0);
 		xpfAssert( ("Expecting a valid peer.", peer != 0) );
 		xpfAssert( ("Expecting an UDP endpoint.", isUdp) );
 		xpfAssert( ("Not a connected endpoint.", Status == NetEndpoint::ESTAT_CONNECTED) );
@@ -481,9 +471,9 @@ struct NetEndpointDetail
 		}
 	}
 
-#if defined(XPF_PLATFORM_WINDOWS)
-	bool platformInit()
+	static bool platformInit()
 	{
+#if defined(XPF_PLATFORM_WINDOWS)
 		static bool initialized = false;
 
 		// Do WSAStartup if never did before.
@@ -501,14 +491,13 @@ struct NetEndpointDetail
 			else
 			{
 				xpfAssert( ("WSAStartup failed.", false) );
-				Status = NetEndpoint::ESTAT_INVALID;
 			}
 		} // end of if (!initialized)
 		return initialized;
-	}
 #else
-	inline bool platformInit() { return true; }
+		return true;
 #endif
+	}
 
 	c8                    Address[XPF_NETENDPOINT_MAXADDRLEN]; // Always in numeric form.
 	c8                    SockAddr[XPF_NETENDPOINT_MAXADDRLEN];
@@ -516,7 +505,7 @@ struct NetEndpointDetail
 	const u32             Protocol;
 	NetEndpoint::EStatus  Status;
 	s32                   Socket;
-}; // end of struct NetEndpointDetail
+}; // end of struct NetEndpointImpl
 
 
 //============------------- NetEndpoint Impl. ------------======================//
@@ -529,116 +518,158 @@ NetEndpoint::NetEndpoint()
 
 NetEndpoint::NetEndpoint(u32 protocol)
 {
-	pImpl = (vptr) new NetEndpointDetail(protocol);
+	pImpl = new NetEndpointImpl(protocol);
+}
+
+NetEndpoint::NetEndpoint(u32 protocol, int socket, NetEndpoint::EStatus status)
+{
+	pImpl = new NetEndpointImpl(protocol, socket, status);
 }
 
 NetEndpoint::~NetEndpoint()
 {
 	if (pImpl != 0)
 	{
-		delete (NetEndpointDetail*) pImpl;
+		delete pImpl;
 		pImpl = 0;
 	}
 }
 
-NetEndpoint* NetEndpoint::createEndpoint(EConnDir type, u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+NetEndpoint* NetEndpoint::createEndpoint(u32 protocol)
 {
-	NetEndpoint *ret = 0;
+	return new NetEndpoint(protocol);
+}
 
-	switch (type)
+NetEndpoint* NetEndpoint::createEndpoint(u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+{
+	NetEndpoint *ret = new NetEndpoint(protocol);
+	if (!ret || !ret->listen(addr, port, errorcode, backlog))
 	{
-	case ECD_OUTGOING:
-		ret = new NetEndpoint(protocol);
-		ret->connect(addr, port, errorcode);
-		break;
-	case ECD_INCOMING:
-		ret = new NetEndpoint(protocol);
-		ret->listen(addr, port, errorcode, backlog);
-		break;
-	default:
-		xpfAssert( ("Unknown endpoint type.", false) );
-		break;
+		delete ret;
+		return 0;
+	}
+	return ret;
+}
+
+void NetEndpoint::freeEndpoint(NetEndpoint *ep)
+{
+	delete ep;
+}
+
+bool NetEndpoint::resolvePeer(u32 protocol, NetEndpoint::Peer &peer, const c8 * host, const c8 * serv, u32 port)
+{
+	string portStr;
+
+	if (serv == NULL)
+	{
+		portStr = lexical_cast<c8>(port);
+		serv = portStr.c_str();
 	}
 
-	return ret;
+	struct addrinfo hint = { 0 };
+	struct addrinfo *results;
+	hint.ai_family = (protocol & NetEndpoint::ProtocolIPv6) ? AF_INET6 : AF_INET;
+	hint.ai_socktype = (protocol & NetEndpoint::ProtocolTCP) ? SOCK_STREAM : SOCK_DGRAM;
+	hint.ai_protocol = (protocol & NetEndpoint::ProtocolTCP) ? IPPROTO_TCP : IPPROTO_UDP;
+	hint.ai_flags = (AF_INET6 == hint.ai_family) ? AI_V4MAPPED : 0;
+	int ec = ::getaddrinfo(host, portStr.c_str(), &hint, &results);
+	if (0 != ec)
+	{
+		return false;
+	}
+
+	std::memcpy(peer.Data, results->ai_addr, results->ai_addrlen);
+	peer.Length = results->ai_addrlen;
+	::freeaddrinfo(results);
+	return true;
+}
+
+bool NetEndpoint::platformInit()
+{
+	return NetEndpointImpl::platformInit();
 }
 
 bool NetEndpoint::connect(const c8 *addr, u32 port, u32 *errorcode)
 {
-	return ((NetEndpointDetail*)pImpl)->connect(addr, port, errorcode);
+	return pImpl->connect(addr, port, errorcode);
 }
 
 bool NetEndpoint::listen (const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
 {
-	return ((NetEndpointDetail*)pImpl)->listen(addr, port, errorcode, backlog);
+	return pImpl->listen(addr, port, errorcode, backlog);
 }
 
 NetEndpoint* NetEndpoint::accept (u32 *errorcode)
 {
-	NetEndpointDetail *peerDetail = ((NetEndpointDetail*)pImpl)->accept(errorcode);
+	NetEndpointImpl *peerDetail = pImpl->accept(errorcode);
 	if (peerDetail == 0)
 	{
 		return 0;
 	}
 
 	NetEndpoint *peer = new NetEndpoint;
-	peer->pImpl = (vptr) peerDetail;
+	peer->pImpl = peerDetail;
 	return peer;
 }
 
 s32 NetEndpoint::recv ( c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->recv(buf, len, errorcode);
+	return pImpl->recv(buf, len, errorcode);
 }
 
 s32 NetEndpoint::recvFrom ( Peer *peer, c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->recvFrom(peer, buf, len, errorcode);
+	return pImpl->recvFrom(peer, buf, len, errorcode);
 }
 
 s32 NetEndpoint::send ( const c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->send(buf, len, errorcode);
+	return pImpl->send(buf, len, errorcode);
 }
 
 s32 NetEndpoint::sendTo ( const Peer *peer, const c8 *buf, s32 len, u32 *errorcode )
 {
-	return ((NetEndpointDetail*)pImpl)->sendTo(peer, buf, len, errorcode);
+	return pImpl->sendTo(peer, buf, len, errorcode);
 }
 
 void NetEndpoint::shutdown(NetEndpoint::EShutdownDir dir, u32 *errorcode)
 {
-	return ((NetEndpointDetail*)pImpl)->shutdown(dir, errorcode);
+	return pImpl->shutdown(dir, errorcode);
 }
 
 void NetEndpoint::close ()
 {
-	((NetEndpointDetail*)pImpl)->close();
+	pImpl->close();
 }
 
 NetEndpoint::EStatus NetEndpoint::getStatus() const
 {
-	return ((NetEndpointDetail*)pImpl)->Status;
+	return pImpl->Status;
+}
+
+void NetEndpoint::setStatus(NetEndpoint::EStatus status)
+{
+	pImpl->Status = status;
 }
 
 const c8* NetEndpoint::getAddress() const
 {
-	return ((NetEndpointDetail*)pImpl)->Address;
+	return pImpl->Address;
 }
 
 u32 NetEndpoint::getPort() const
 {
-	return ((NetEndpointDetail*)pImpl)->Port;
+	return pImpl->Port;
 }
 
 u32 NetEndpoint::getProtocol() const
 {
-	return ((NetEndpointDetail*)pImpl)->Protocol;
+	return pImpl->Protocol;
 }
 
 int NetEndpoint::getSocket() const
 {
-	return ((NetEndpointDetail*)pImpl)->Socket;
+	return pImpl->Socket;
 }
 
 }; // end of namespace xpf

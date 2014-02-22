@@ -67,44 +67,44 @@ NetIoMux::RunningStaus NetIoMux::runOnce(u32 timeoutMs)
 	return pImpl->runOnce(timeoutMs);
 }
 
-void NetIoMux::asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb)
+void NetIoMux::asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb)
 {
 	pImpl->asyncRecv(ep, buf, buflen, cb);
 }
 
-void NetIoMux::asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb)
+void NetIoMux::asyncRecvFrom(NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb)
 {
 	pImpl->asyncRecvFrom(ep, peer, buf, buflen, cb);
 }
 
-void NetIoMux::asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb)
+void NetIoMux::asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb)
 {
 	pImpl->asyncSend(ep, buf, buflen, cb);
 }
 
-void NetIoMux::asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb)
+void NetIoMux::asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb)
 {
 	pImpl->asyncSendTo(ep, peer, buf, buflen, cb);
 }
 
-void NetIoMux::asyncAccept(const NetEndpoint *ep, AcceptCallback cb)
+void NetIoMux::asyncAccept(NetEndpoint *ep, AcceptCallback cb)
 {
 	pImpl->asyncAccept(ep, cb);
 }
 
-void NetIoMux::asyncConnect(const c8 *host, u32 port, ConnectCallback cb)
+void NetIoMux::asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, ConnectCallback cb)
 {
-	pImpl->asyncConnect(host, port, cb);
+	pImpl->asyncConnect(ep, host, port, cb);
 }
 
-bool NetIoMux::provision(NetEndpoint *ep)
+bool NetIoMux::join(NetEndpoint *ep)
 {
-	return NetIoMuxImpl::provision(ep);
+	return pImpl->join(ep);
 }
 
-bool NetIoMux::unprovision(NetEndpoint *ep)
+bool NetIoMux::depart(NetEndpoint *ep)
 {
-	return NetIoMuxImpl::unprovision(ep);
+	return pImpl->depart(ep);
 }
 
 const char * NetIoMux::getMultiplexerType(EPlatformMultiplexer &epm)
