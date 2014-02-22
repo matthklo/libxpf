@@ -70,7 +70,7 @@ namespace xpf
 
 		}
 
-		void asyncRecvFrom(NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
+		void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
 		{
 
 		}

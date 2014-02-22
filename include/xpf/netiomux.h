@@ -73,7 +73,7 @@ public:
 
 	// For I/O control
 	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb);
-	void asyncRecvFrom(NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb);
+	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, RecvFromCallback cb);
 	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb);
 	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb);
 	void asyncAccept(NetEndpoint *ep, AcceptCallback cb);

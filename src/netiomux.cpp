@@ -72,9 +72,9 @@ void NetIoMux::asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb)
 	pImpl->asyncRecv(ep, buf, buflen, cb);
 }
 
-void NetIoMux::asyncRecvFrom(NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb)
+void NetIoMux::asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, RecvFromCallback cb)
 {
-	pImpl->asyncRecvFrom(ep, peer, buf, buflen, cb);
+	pImpl->asyncRecvFrom(ep, buf, buflen, cb);
 }
 
 void NetIoMux::asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb)
