@@ -34,46 +34,46 @@ namespace xpf
 class XPF_API NetEndpoint
 {
 public:
-	enum EndpointTypeEnum
+	enum EConnDir
 	{
-		ETE_INCOMING = 0,
-		ETE_OUTGOING,
+		ECD_INCOMING = 0,
+		ECD_OUTGOING,
 
-		ETE_MAX,
-		ETE_UNKNOWN,
+		ECD_MAX,
+		ECD_UNKNOWN,
 	};
 
-	enum EndpointStatusEnum
+	enum EStatus
 	{
-		ESE_INIT = 0,
-		ESE_LISTENING,
-		ESE_CONNECTED,
-		ESE_CLOSING,
-		ESE_INVALID,
+		ESTAT_INIT = 0,
+		ESTAT_LISTENING,
+		ESTAT_CONNECTED,
+		ESTAT_CLOSING,
+		ESTAT_INVALID,
 
-		ESE_MAX,
-		ESE_UNKNOWN,
+		ESTAT_MAX,
+		ESTAT_UNKNOWN,
 	};
 
-	enum EndpointErrorEnum
+	enum EError
 	{
-		EEE_SUCCESS = 0,
-		EEE_INVALID_OP,
-		EEE_RECV,
-		EEE_SEND,
-		EEE_CONNECT,
-		EEE_BIND,
-		EEE_LISTEN,
-		EEE_RESOLVE,
-		EEE_ACCEPT,
-		EEE_SHUTDOWN,
-		EEE_TIMEOUT,
+		EE_SUCCESS = 0,
+		EE_INVALID_OP,
+		EE_RECV,
+		EE_SEND,
+		EE_CONNECT,
+		EE_BIND,
+		EE_LISTEN,
+		EE_RESOLVE,
+		EE_ACCEPT,
+		EE_SHUTDOWN,
+		EE_WOULDBLOCK,
 
-		EEE_MAX,
-		EEE_UNKNOWN,
+		EE_MAX,
+		EE_UNKNOWN,
 	};
 
-	enum EndpointShutdownDir
+	enum EShutdownDir
 	{
 		ESD_READ = 0,
 		ESD_WRITE,
@@ -91,7 +91,7 @@ public:
 	static const u32 EndpointProtocolIPv4 = 0x100;
 	static const u32 EndpointProtocolIPv6 = 0x200;
 
-	static NetEndpoint* createEndpoint(EndpointTypeEnum type, u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
+	static NetEndpoint* createEndpoint(EConnDir type, u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
 
 	explicit NetEndpoint(u32 protocol);
 	virtual ~NetEndpoint();
@@ -107,17 +107,17 @@ public:
 	s32          recvFrom ( Peer *peer, c8 *buf, s32 len, u32 *errorcode = 0);
 	s32          send     ( const c8 *buf, s32 len, u32 *errorcode = 0);
 	s32          sendTo   ( const Peer *peer, const c8 *buf, s32 len, u32 *errorcode = 0);
-	void         shutdown ( EndpointShutdownDir dir, u32 *errorcode = 0);
+	void         shutdown ( EShutdownDir dir, u32 *errorcode = 0);
 	void         close    ( );
 
-	inline EndpointStatusEnum getStatus() const;
-	inline const c8*          getAddress() const;
-	inline u32                getPort() const;
-	inline u32                getProtocol() const;
-	inline s32                getSocket() const;
+	inline EStatus    getStatus() const;
+	inline const c8*  getAddress() const;
+	inline u32        getPort() const;
+	inline u32        getProtocol() const;
+	inline s32        getSocket() const;
 
-	inline vptr               getPlatformData() const { return pPlatformData; }
-	inline vptr               setPlatformData(vptr newdata) { vptr olddata = pPlatformData; pPlatformData = newdata; return olddata; }
+	inline vptr       getAsyncContext() const { return pAsyncContext; }
+	inline vptr       setAsyncContext(vptr newdata) { vptr olddata = pAsyncContext; pAsyncContext = newdata; return olddata; }
 
 	// TODO: getsockopt setsockopt
 
@@ -125,10 +125,10 @@ private:
 	NetEndpoint();
 	// Non-copyable
 	NetEndpoint(const NetEndpoint& that) {}
-	NetEndpoint& operator = (const NetEndpoint& that) {}
+	NetEndpoint& operator = (const NetEndpoint& that) { return *this; }
 
 	vptr pImpl;
-	vptr pPlatformData;
+	vptr pAsyncContext;
 };
 
 }; // end of namespace xpf

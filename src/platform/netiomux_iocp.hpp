@@ -28,3 +28,101 @@
 #else
 #define _XPF_NETIOMUX_IMPL_INCLUDED_
 #endif
+
+namespace xpf
+{
+
+struct IocpAsyncContext
+{
+
+};
+
+class NetIoMuxImpl
+{
+public:
+	NetIoMuxImpl()
+	{
+
+	}
+
+	~NetIoMuxImpl()
+	{
+
+	}
+
+	void enable(bool val)
+	{
+
+	}
+
+	void run()
+	{
+
+	}
+
+	NetIoMux::RunningStaus runOnce(u32 timeoutMs)
+	{
+		return NetIoMux::RS_NORMAL;
+	}
+
+	void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvCallback cb)
+	{
+
+	}
+
+	void asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
+	{
+
+	}
+
+	void asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMux::SendCallback cb)
+	{
+
+	}
+
+	void asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMux::SendToCallback cb)
+	{
+
+	}
+
+	void asyncAccept(const NetEndpoint *ep, NetIoMux::AcceptCallback cb)
+	{
+
+	}
+
+	void asyncConnect(const c8 *host, u32 port, NetIoMux::ConnectCallback cb)
+	{
+
+	}
+
+	static bool provision(NetEndpoint *ep)
+	{
+		if (ep->getAsyncContext() != 0)
+			return false;
+
+		ep->setAsyncContext((vptr) new IocpAsyncContext);
+		return true;
+	}
+
+	static bool unprovision(NetEndpoint *ep)
+	{
+		IocpAsyncContext *ctx = (IocpAsyncContext*)((ep) ? ep->getAsyncContext() : 0);
+		if (ctx)
+		{
+			delete ctx;
+			return true;
+		}
+		return false;
+	}
+
+	static const char * getMultiplexerType(NetIoMux::EPlatformMultiplexer &epm)
+	{
+		epm = NetIoMux::EPM_IOCP;
+		return "iocp";
+	}
+
+private:
+
+}; // end of class NetIoMuxImpl (IOCP)
+
+} // end of namespace xpf

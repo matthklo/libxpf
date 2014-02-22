@@ -50,7 +50,7 @@ struct NetEndpointDetail
 	{
 		platformInit();
 		reset();
-		Status = NetEndpoint::ESE_INIT;
+		Status = NetEndpoint::ESTAT_INIT;
 
 		// Decide detail socket parameters.
 		int family = AF_UNSPEC;
@@ -65,7 +65,7 @@ struct NetEndpointDetail
 		xpfAssert( ("Invalid procotol specified.", AF_UNSPEC != family) );
 		if ( AF_UNSPEC == family )
 		{
-			Status = NetEndpoint::ESE_INVALID;
+			Status = NetEndpoint::ESTAT_INVALID;
 			return;
 		}
 
@@ -83,18 +83,18 @@ struct NetEndpointDetail
 		xpfAssert( ("Invalid procotol specified.", ((type != 0) && (proto != 0))) );
 		if (type == 0 || proto == 0)
 		{
-			Status = NetEndpoint::ESE_INVALID;
+			Status = NetEndpoint::ESTAT_INVALID;
 			return;
 		}
 
 		Socket = ::socket(family, type, proto);
 		if (INVALID_SOCKET == Socket)
 		{
-			Status = NetEndpoint::ESE_INVALID;
+			Status = NetEndpoint::ESTAT_INVALID;
 		}
 	}
 
-	NetEndpointDetail(u32 protocol, int socket, NetEndpoint::EndpointStatusEnum status = NetEndpoint::ESE_CONNECTED)
+	NetEndpointDetail(u32 protocol, int socket, NetEndpoint::EStatus status = NetEndpoint::ESTAT_CONNECTED)
 		: Protocol(protocol)
 	{
 		reset();
@@ -134,11 +134,11 @@ struct NetEndpointDetail
 		if (0 == addr)
 			addr = "localhost";
 
-		xpfAssert( ("Stale endpoint.", NetEndpoint::ESE_INIT == Status) );
-		if ( (0 == port) || (NetEndpoint::ESE_INIT != Status) )
+		xpfAssert(("Stale endpoint.", NetEndpoint::ESTAT_INIT == Status));
+		if ((0 == port) || (NetEndpoint::ESTAT_INIT != Status))
 		{
 			if (errorcode)
-				*errorcode = (u32)NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32)NetEndpoint::EE_INVALID_OP;
 			return false;
 		}
 
@@ -156,7 +156,7 @@ struct NetEndpointDetail
 		if (0 != ec)
 		{
 			if (errorcode)
-				*errorcode = (u32)NetEndpoint::EEE_RESOLVE;
+				*errorcode = (u32)NetEndpoint::EE_RESOLVE;
 			return false;
 		}
 
@@ -177,7 +177,7 @@ struct NetEndpointDetail
 			}
 
 			ret = true;
-			Status = NetEndpoint::ESE_CONNECTED;
+			Status = NetEndpoint::ESTAT_CONNECTED;
 			Port = port;
 
 			ec = ::getnameinfo(results->ai_addr, results->ai_addrlen, Address, XPF_NETENDPOINT_MAXADDRLEN,
@@ -196,7 +196,7 @@ struct NetEndpointDetail
 		} while (0);
 
 		if (errorcode)
-			*errorcode = (ret)? (u32)NetEndpoint::EEE_SUCCESS : (u32)NetEndpoint::EEE_CONNECT;
+			*errorcode = (ret)? (u32)NetEndpoint::EE_SUCCESS : (u32)NetEndpoint::EE_CONNECT;
 		freeaddrinfo(results);
 		return ret;
 	}
@@ -206,11 +206,11 @@ struct NetEndpointDetail
 	{
 		bool ret = false;
 
-		xpfAssert( ("Stale endpoint.", NetEndpoint::ESE_INIT == Status) );
-		if ( (NetEndpoint::ESE_INIT != Status) || (0 == port) )
+		xpfAssert(("Stale endpoint.", NetEndpoint::ESTAT_INIT == Status));
+		if ((NetEndpoint::ESTAT_INIT != Status) || (0 == port))
 		{
 			if (errorcode)
-				*errorcode = (u32)NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32)NetEndpoint::EE_INVALID_OP;
 			return false;
 		}
 
@@ -233,7 +233,7 @@ struct NetEndpointDetail
 		if (0 != ec)
 		{
 			if (errorcode)
-				*errorcode = (u32)NetEndpoint::EEE_RESOLVE;
+				*errorcode = (u32)NetEndpoint::EE_RESOLVE;
 			return false;
 		}
 
@@ -246,7 +246,7 @@ struct NetEndpointDetail
 			if (0 != ec)
 			{
 				if (errorcode)
-					*errorcode = (u32)NetEndpoint::EEE_BIND;
+					*errorcode = (u32)NetEndpoint::EE_BIND;
 				break;
 			}
 
@@ -257,15 +257,15 @@ struct NetEndpointDetail
 				if (0 != ec)
 				{
 					if (errorcode)
-						*errorcode = (u32)NetEndpoint::EEE_LISTEN;
-					Status = NetEndpoint::ESE_INVALID;
+						*errorcode = (u32)NetEndpoint::EE_LISTEN;
+					Status = NetEndpoint::ESTAT_INVALID;
 					break;
 				}
 			}
 
-			Status = NetEndpoint::ESE_LISTENING;
+			Status = NetEndpoint::ESTAT_LISTENING;
 			if (errorcode)
-				*errorcode = (u32)NetEndpoint::EEE_SUCCESS;
+				*errorcode = (u32)NetEndpoint::EE_SUCCESS;
 			ret = true;
 
 		} while (0);
@@ -279,11 +279,11 @@ struct NetEndpointDetail
 	{
 		bool isTcp = ( (Protocol & NetEndpoint::EndpointProtocolTCP) != 0 );
 		xpfAssert( ("Expecting TCP endpoint.", isTcp) );
-		xpfAssert( ("Not a listening endpoint.", Status == NetEndpoint::ESE_LISTENING) );
-		if (!isTcp || (Status != NetEndpoint::ESE_LISTENING))
+		xpfAssert(("Not a listening endpoint.", Status == NetEndpoint::ESTAT_LISTENING));
+		if (!isTcp || (Status != NetEndpoint::ESTAT_LISTENING))
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32) NetEndpoint::EE_INVALID_OP;
 			return 0;
 		}
 
@@ -292,13 +292,13 @@ struct NetEndpointDetail
 		if (acceptedSocket == INVALID_SOCKET)
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_ACCEPT;
+				*errorcode = (u32) NetEndpoint::EE_ACCEPT;
 			return 0;
 		}
 
 		NetEndpointDetail *peer = new NetEndpointDetail(Protocol, acceptedSocket);
 		if (errorcode)
-			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
+			*errorcode = (u32) NetEndpoint::EE_SUCCESS;
 		return peer;
 	}
 
@@ -308,18 +308,18 @@ struct NetEndpointDetail
 		bool isTcp = ((Protocol & NetEndpoint::EndpointProtocolTCP) != 0);
 		if (isTcp)
 		{
-			xpfAssert( ("Not a connected TCP endpoint.", Status == NetEndpoint::ESE_CONNECTED) );
+			xpfAssert(("Not a connected TCP endpoint.", Status == NetEndpoint::ESTAT_CONNECTED));
 		}
 		else
 		{
-			xpfAssert( ("Not a listening UDP endpoint.", Status == NetEndpoint::ESE_LISTENING) );
+			xpfAssert(("Not a listening UDP endpoint.", Status == NetEndpoint::ESTAT_LISTENING));
 		}
 
-		if ((isTcp && (Status != NetEndpoint::ESE_CONNECTED)) ||
-			(!isTcp && (Status != NetEndpoint::ESE_LISTENING)))
+		if ((isTcp && (Status != NetEndpoint::ESTAT_CONNECTED)) ||
+			(!isTcp && (Status != NetEndpoint::ESTAT_LISTENING)))
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32) NetEndpoint::EE_INVALID_OP;
 			return 0;
 		}
 
@@ -327,12 +327,12 @@ struct NetEndpointDetail
 		if (cnt < 0)
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_RECV;
+				*errorcode = (u32) NetEndpoint::EE_RECV;
 			return 0;
 		}
 
 		if (errorcode)
-			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
+			*errorcode = (u32) NetEndpoint::EE_SUCCESS;
 		return cnt;
 	}
 
@@ -342,11 +342,11 @@ struct NetEndpointDetail
 		bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
 		xpfAssert( ("Expecting a valid peer.", peer != 0) );
 		xpfAssert( ("Expecting an UDP endpoint.", isUdp) );
-		xpfAssert( ("Neither a connected nor a listening endpoint.", (Status == NetEndpoint::ESE_CONNECTED || Status == NetEndpoint::ESE_LISTENING)) );
-		if (!isUdp || !peer || ((Status != NetEndpoint::ESE_CONNECTED) && (Status != NetEndpoint::ESE_LISTENING)))
+		xpfAssert(("Neither a connected nor a listening endpoint.", (Status == NetEndpoint::ESTAT_CONNECTED || Status == NetEndpoint::ESTAT_LISTENING)));
+		if (!isUdp || !peer || ((Status != NetEndpoint::ESTAT_CONNECTED) && (Status != NetEndpoint::ESTAT_LISTENING)))
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32) NetEndpoint::EE_INVALID_OP;
 			return 0;
 		}
 
@@ -355,23 +355,23 @@ struct NetEndpointDetail
 		if (cnt < 0)
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_RECV;
+				*errorcode = (u32) NetEndpoint::EE_RECV;
 			return 0;
 		}
 
 		if (errorcode)
-			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
+			*errorcode = (u32) NetEndpoint::EE_SUCCESS;
 		return cnt;
 	}
 
 	// TCP and UDP
 	s32 send (const c8 *buf, s32 len, u32 *errorcode)
 	{
-		xpfAssert( ("Not a connected endpoint.", Status == NetEndpoint::ESE_CONNECTED) );
-		if (Status != NetEndpoint::ESE_CONNECTED)
+		xpfAssert(("Not a connected endpoint.", Status == NetEndpoint::ESTAT_CONNECTED));
+		if (Status != NetEndpoint::ESTAT_CONNECTED)
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32) NetEndpoint::EE_INVALID_OP;
 			return 0;
 		}
 
@@ -379,12 +379,12 @@ struct NetEndpointDetail
 		if (cnt < 0)
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_SEND;
+				*errorcode = (u32) NetEndpoint::EE_SEND;
 			return 0;
 		}
 
 		if (errorcode)
-			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
+			*errorcode = (u32) NetEndpoint::EE_SUCCESS;
 		return cnt;
 	}
 
@@ -394,11 +394,11 @@ struct NetEndpointDetail
 		const bool isUdp = ((Protocol & NetEndpoint::EndpointProtocolUDP) != 0);
 		xpfAssert( ("Expecting a valid peer.", peer != 0) );
 		xpfAssert( ("Expecting an UDP endpoint.", isUdp) );
-		xpfAssert( ("Not a connected endpoint.", Status == NetEndpoint::ESE_CONNECTED) );
-		if (!isUdp || !peer || (Status != NetEndpoint::ESE_CONNECTED))
+		xpfAssert( ("Not a connected endpoint.", Status == NetEndpoint::ESTAT_CONNECTED) );
+		if (!isUdp || !peer || (Status != NetEndpoint::ESTAT_CONNECTED))
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32) NetEndpoint::EE_INVALID_OP;
 			return 0;
 		}
 
@@ -406,16 +406,16 @@ struct NetEndpointDetail
 		if (cnt < 0)
 		{
 			if (errorcode)
-				*errorcode = (u32) NetEndpoint::EEE_SEND;
+				*errorcode = (u32) NetEndpoint::EE_SEND;
 			return 0;
 		}
 
 		if (errorcode)
-			*errorcode = (u32) NetEndpoint::EEE_SUCCESS;
+			*errorcode = (u32) NetEndpoint::EE_SUCCESS;
 		return cnt;
 	}
 
-	void shutdown(NetEndpoint::EndpointShutdownDir dir, u32 *errorcode)
+	void shutdown(NetEndpoint::EShutdownDir dir, u32 *errorcode)
 	{
 		s32 shutdownFlag = 0;
 		switch (dir)
@@ -444,18 +444,18 @@ struct NetEndpointDetail
 		default:
 			xpfAssert( ("Invalid shutdown flag.", false) );
 			if (errorcode)
-				*errorcode = (u32)NetEndpoint::EEE_INVALID_OP;
+				*errorcode = (u32)NetEndpoint::EE_INVALID_OP;
 			return;
 		}
 
 		s32 ec = ::shutdown(Socket, shutdownFlag);
 		if (errorcode)
-			*errorcode = (0 == ec) ? (u32)NetEndpoint::EEE_SUCCESS : (u32) NetEndpoint::EEE_SHUTDOWN;
+			*errorcode = (0 == ec) ? (u32)NetEndpoint::EE_SUCCESS : (u32) NetEndpoint::EE_SHUTDOWN;
 	}
 
 	void close ()
 	{
-		Status = NetEndpoint::ESE_CLOSING;
+		Status = NetEndpoint::ESTAT_CLOSING;
 		if (Socket != INVALID_SOCKET)
 		{
 			shutdown(NetEndpoint::ESD_BOTH, 0);
@@ -471,7 +471,7 @@ struct NetEndpointDetail
 	void reset()
 	{
 		Port = 0;
-		Status = NetEndpoint::ESE_INVALID;
+		Status = NetEndpoint::ESTAT_INVALID;
 		Socket = INVALID_SOCKET;
 
 		for (int i=0; i<XPF_NETENDPOINT_MAXADDRLEN; ++i)
@@ -501,7 +501,7 @@ struct NetEndpointDetail
 			else
 			{
 				xpfAssert( ("WSAStartup failed.", false) );
-				Status = NetEndpoint::ESE_INVALID;
+				Status = NetEndpoint::ESTAT_INVALID;
 			}
 		} // end of if (!initialized)
 		return initialized;
@@ -510,12 +510,12 @@ struct NetEndpointDetail
 	inline bool platformInit() { return true; }
 #endif
 
-	c8                               Address[XPF_NETENDPOINT_MAXADDRLEN]; // Always in numeric form.
-	c8                               SockAddr[XPF_NETENDPOINT_MAXADDRLEN];
-	u32                              Port;
-	const u32                        Protocol;
-	NetEndpoint::EndpointStatusEnum  Status;
-	s32                              Socket;
+	c8                    Address[XPF_NETENDPOINT_MAXADDRLEN]; // Always in numeric form.
+	c8                    SockAddr[XPF_NETENDPOINT_MAXADDRLEN];
+	u32                   Port;
+	const u32             Protocol;
+	NetEndpoint::EStatus  Status;
+	s32                   Socket;
 }; // end of struct NetEndpointDetail
 
 
@@ -523,7 +523,7 @@ struct NetEndpointDetail
 
 NetEndpoint::NetEndpoint()
 	: pImpl(0)
-	, pPlatformData(0)
+	, pAsyncContext(0)
 {
 }
 
@@ -541,17 +541,17 @@ NetEndpoint::~NetEndpoint()
 	}
 }
 
-NetEndpoint* NetEndpoint::createEndpoint(EndpointTypeEnum type, u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+NetEndpoint* NetEndpoint::createEndpoint(EConnDir type, u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
 {
 	NetEndpoint *ret = 0;
 
 	switch (type)
 	{
-	case ETE_OUTGOING:
+	case ECD_OUTGOING:
 		ret = new NetEndpoint(protocol);
 		ret->connect(addr, port, errorcode);
 		break;
-	case ETE_INCOMING:
+	case ECD_INCOMING:
 		ret = new NetEndpoint(protocol);
 		ret->listen(addr, port, errorcode, backlog);
 		break;
@@ -606,7 +606,7 @@ s32 NetEndpoint::sendTo ( const Peer *peer, const c8 *buf, s32 len, u32 *errorco
 	return ((NetEndpointDetail*)pImpl)->sendTo(peer, buf, len, errorcode);
 }
 
-void NetEndpoint::shutdown(NetEndpoint::EndpointShutdownDir dir, u32 *errorcode)
+void NetEndpoint::shutdown(NetEndpoint::EShutdownDir dir, u32 *errorcode)
 {
 	return ((NetEndpointDetail*)pImpl)->shutdown(dir, errorcode);
 }
@@ -616,7 +616,7 @@ void NetEndpoint::close ()
 	((NetEndpointDetail*)pImpl)->close();
 }
 
-NetEndpoint::EndpointStatusEnum NetEndpoint::getStatus() const
+NetEndpoint::EStatus NetEndpoint::getStatus() const
 {
 	return ((NetEndpointDetail*)pImpl)->Status;
 }

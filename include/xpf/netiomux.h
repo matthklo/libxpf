@@ -31,14 +31,26 @@
 namespace xpf
 {
 
+class NetIoMuxImpl;
+
 class NetIoMux
 {
 public:
-	enum NetIoMuxRunningStaus
+	enum EPlatformMultiplexer
 	{
-		NIMRS_NORMAL = 0,
-		NIMRS_TIMEOUT,
-		NIMRS_SHUTDOWN,
+		EPM_IOCP = 0,
+		EPM_EPOLL,
+		EPM_KQUEUE,
+
+		EPM_MAX,
+		EPM_UNKNOWN,
+	};
+
+	enum RunningStaus
+	{
+		RS_NORMAL = 0,
+		RS_TIMEOUT,
+		RS_DISABLED,
 	};
 
 	typedef Delegate<void(u32, const NetEndpoint*, c8*, u32)> RecvCallback; // ec, ep, buf, bytes
@@ -52,11 +64,12 @@ public:
 	virtual ~NetIoMux();
 
 	// life cycle
-	void shutdown();
+	void enable(bool val = true);
+	inline void disable() { enable(false); }
 
 	// For worker threads.
-	void                 run();
-	NetIoMuxRunningStaus runOnce(u32 timeoutMs = 0xffffffff);
+	void         run();
+	RunningStaus runOnce(u32 timeoutMs = 0xffffffff);
 
 	// For I/O control
 	void asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb);
@@ -66,17 +79,17 @@ public:
 	void asyncAccept(const NetEndpoint *ep, AcceptCallback cb);
 	void asyncConnect(const c8 *host, u32 port, ConnectCallback cb);
 
-	// For endpoints control
-	NetEndpoint* createEndpoint(NetEndpoint::EndpointTypeEnum type);
-
-	// TODO: should we provide attach/detach functions for a single endpoint?
+	// Attach/Detach private data for endpoint to fit netiomux using.
+	static bool provision(NetEndpoint *ep);
+	static bool unprovision(NetEndpoint *ep);
+	static const char * getMultiplexerType(EPlatformMultiplexer &epm);
 
 private:
 	// Non-copyable
 	NetIoMux(const NetIoMux& that) {}
 	NetIoMux& operator = (const NetIoMux& that) {}
 
-	vptr pImpl;
+	NetIoMuxImpl *pImpl;
 };
 
 }; // end of namespace xpf

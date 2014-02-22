@@ -34,3 +34,82 @@
 #else
 #  error NetIoMux is not supported on current platform.
 #endif
+
+namespace xpf
+{
+
+NetIoMux::NetIoMux()
+{
+	pImpl = new NetIoMuxImpl();
+}
+
+NetIoMux::~NetIoMux()
+{
+	if (pImpl)
+	{
+		delete pImpl;
+		pImpl = 0;
+	}
+}
+
+void NetIoMux::enable(bool val)
+{
+	pImpl->enable(val);
+}
+
+void NetIoMux::run()
+{
+	pImpl->run();
+}
+
+NetIoMux::RunningStaus NetIoMux::runOnce(u32 timeoutMs)
+{
+	return pImpl->runOnce(timeoutMs);
+}
+
+void NetIoMux::asyncRecv(const NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb)
+{
+	pImpl->asyncRecv(ep, buf, buflen, cb);
+}
+
+void NetIoMux::asyncRecvFrom(const NetEndpoint *ep, NetEndpoint::Peer *peer, c8 *buf, u32 buflen, RecvFromCallback cb)
+{
+	pImpl->asyncRecvFrom(ep, peer, buf, buflen, cb);
+}
+
+void NetIoMux::asyncSend(const NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb)
+{
+	pImpl->asyncSend(ep, buf, buflen, cb);
+}
+
+void NetIoMux::asyncSendTo(const NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb)
+{
+	pImpl->asyncSendTo(ep, peer, buf, buflen, cb);
+}
+
+void NetIoMux::asyncAccept(const NetEndpoint *ep, AcceptCallback cb)
+{
+	pImpl->asyncAccept(ep, cb);
+}
+
+void NetIoMux::asyncConnect(const c8 *host, u32 port, ConnectCallback cb)
+{
+	pImpl->asyncConnect(host, port, cb);
+}
+
+bool NetIoMux::provision(NetEndpoint *ep)
+{
+	return NetIoMuxImpl::provision(ep);
+}
+
+bool NetIoMux::unprovision(NetEndpoint *ep)
+{
+	return NetIoMuxImpl::unprovision(ep);
+}
+
+const char * NetIoMux::getMultiplexerType(EPlatformMultiplexer &epm)
+{
+	return NetIoMuxImpl::getMultiplexerType(epm);
+}
+
+} // end of namespace xpf
