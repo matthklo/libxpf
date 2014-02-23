@@ -88,7 +88,7 @@ public:
 
 	static NetEndpoint* create(u32 protocol);
 	static NetEndpoint* create(u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
-	static void         free(NetEndpoint* ep);
+	static void         release(NetEndpoint* ep);
 	static bool         resolvePeer(u32 protocol, Peer &peer, const c8 * host, const c8 * serv, u32 port = 0);
 	static bool         platformInit();
 

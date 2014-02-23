@@ -22,6 +22,14 @@
 ********************************************************************************/
 
 #include "sync_server.h"
+
+#ifdef XPF_PLATFORM_WINDOWS
+// http://msdn.microsoft.com/en-us/library/vstudio/x98tx3cf.aspx
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
 #include <set>
 #include <stdio.h>
 
@@ -48,11 +56,23 @@ TestSyncServer::TestSyncServer(NetEndpoint *ep)
 
 TestSyncServer::~TestSyncServer()
 {
+	if (mAccepting)
+	{
+		printf("Free up all connected conns (%u)...\n", _g_server_conns.size());
+		for (std::set<TestSyncServer*>::iterator it = _g_server_conns.begin();
+			it != _g_server_conns.end(); ++it)
+		{
+			delete (*it);
+		}
+		printf("All connected conns freed.\n");
+		_g_server_conns.clear();
+	}
+
 	if (mEndpoint)
 	{
 		mEndpoint->close();
 		join();
-		NetEndpoint::free(mEndpoint);
+		NetEndpoint::release(mEndpoint);
 		mEndpoint = 0;
 	}
 	delete[] mBuf;

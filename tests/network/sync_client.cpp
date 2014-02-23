@@ -22,6 +22,14 @@
 ********************************************************************************/
 
 #include "sync_client.h"
+
+#ifdef XPF_PLATFORM_WINDOWS
+// http://msdn.microsoft.com/en-us/library/vstudio/x98tx3cf.aspx
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -41,7 +49,7 @@ TestSyncClient::~TestSyncClient()
 	{
 		mEndpoint->close();
 		join();
-		NetEndpoint::free(mEndpoint);
+		NetEndpoint::release(mEndpoint);
 		mEndpoint = 0;
 	}
 
@@ -56,10 +64,12 @@ u32 TestSyncClient::run(u64 udata)
 	bool ret = false;
 	u32 ec = 0;
 	ret = mEndpoint->connect("localhost", 50123, &ec);
-	xpfAssert(("TestSyncClient - Failed on connecting.",ret == true));
 
 	if (!ret)
+	{
+		printf("Failed on connecting .\n");
 		return 1;
+	}
 
 	for (u16 cnt = 0; cnt < mPingPongTimes; cnt++)
 	{

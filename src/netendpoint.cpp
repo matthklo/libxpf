@@ -550,7 +550,7 @@ NetEndpoint* NetEndpoint::create(u32 protocol, const c8 *addr, u32 port, u32 *er
 	return ret;
 }
 
-void NetEndpoint::free(NetEndpoint *ep)
+void NetEndpoint::release(NetEndpoint *ep)
 {
 	delete ep;
 }

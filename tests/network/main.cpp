@@ -26,28 +26,78 @@
 #include "async_server.h"
 #include "sync_client.h"
 #include "sync_server.h"
+
+#ifdef XPF_PLATFORM_WINDOWS
+// http://msdn.microsoft.com/en-us/library/vstudio/x98tx3cf.aspx
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
+#include <vector>
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
 
-int main(int argc, char *argv[])
+int test_sync()
 {
-	srand((unsigned int)time(0));
-
 	TestSyncServer *syncServ = new TestSyncServer;
 	printf("Sync Server started .\n");
 	syncServ->start();
-	xpf::Thread::sleep(500);
+	xpf::Thread::sleep(100);
 
-	TestSyncClient *syncClient = new TestSyncClient(100, 0);
-	printf("Sync Client started.\n");
-	syncClient->start();
-	syncClient->join();
-	printf("Sync Client stopped.\n");
-	delete syncClient;
+	std::vector<TestSyncClient*> clients;
+	for (xpf::u32 i = 0; i < 20; ++i)
+	{
+		TestSyncClient *syncClient = new TestSyncClient(1000, 0);
+		clients.push_back(syncClient);
+	}
+
+	printf("Starting %u sync clients ...\n", clients.size());
+	for (xpf::u32 i = 0; i < clients.size(); ++i)
+	{
+		clients[i]->start();
+	}
+
+	xpf::u32 errorcnt = 0;
+	while (!clients.empty())
+	{
+		for (xpf::u32 i = 0; i < clients.size(); ++i)
+		{
+			if (clients[i]->join(10))
+			{
+				xpf::u32 exitcode = clients[i]->getExitCode();
+				if (exitcode != 0)
+					errorcnt++;
+				delete clients[i];
+				clients[i] = clients.back();
+				clients.pop_back();
+			}
+		}
+
+		xpf::u32 remains = clients.size();
+		if ((remains != 0) && ((remains % 10) == 0))
+		{
+			printf("%u remaining sync clients ...\n", remains);
+		}
+	}
+	printf("All sync Clients have stopped. %u clients end up with error.\n", errorcnt);
 
 	printf("Sync Server stopping ...\n");
 	delete syncServ;
 	printf("Sync Server stopped .\n");
+	return 0;
+}
+
+int test_async()
+{
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	srand((unsigned int)time(0));
+	test_sync();
+
 	return 0;
 }
