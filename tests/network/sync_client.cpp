@@ -41,7 +41,7 @@ TestSyncClient::~TestSyncClient()
 	{
 		mEndpoint->close();
 		join();
-		NetEndpoint::freeEndpoint(mEndpoint);
+		NetEndpoint::free(mEndpoint);
 		mEndpoint = 0;
 	}
 
@@ -50,7 +50,7 @@ TestSyncClient::~TestSyncClient()
 
 u32 TestSyncClient::run(u64 udata)
 {
-	mEndpoint = NetEndpoint::createEndpoint(NetEndpoint::ProtocolTCP | NetEndpoint::ProtocolIPv4);
+	mEndpoint = NetEndpoint::create(NetEndpoint::ProtocolTCP | NetEndpoint::ProtocolIPv4);
 	xpfAssert(mEndpoint != 0);
 
 	bool ret = false;

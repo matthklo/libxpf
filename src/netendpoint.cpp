@@ -534,12 +534,12 @@ NetEndpoint::~NetEndpoint()
 	}
 }
 
-NetEndpoint* NetEndpoint::createEndpoint(u32 protocol)
+NetEndpoint* NetEndpoint::create(u32 protocol)
 {
 	return new NetEndpoint(protocol);
 }
 
-NetEndpoint* NetEndpoint::createEndpoint(u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+NetEndpoint* NetEndpoint::create(u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
 {
 	NetEndpoint *ret = new NetEndpoint(protocol);
 	if (!ret || !ret->listen(addr, port, errorcode, backlog))
@@ -550,7 +550,7 @@ NetEndpoint* NetEndpoint::createEndpoint(u32 protocol, const c8 *addr, u32 port,
 	return ret;
 }
 
-void NetEndpoint::freeEndpoint(NetEndpoint *ep)
+void NetEndpoint::free(NetEndpoint *ep)
 {
 	delete ep;
 }

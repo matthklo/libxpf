@@ -86,9 +86,9 @@ public:
 	static const u32 ProtocolIPv4 = 0x100;
 	static const u32 ProtocolIPv6 = 0x200;
 
-	static NetEndpoint* createEndpoint(u32 protocol);
-	static NetEndpoint* createEndpoint(u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
-	static void         freeEndpoint(NetEndpoint* ep);
+	static NetEndpoint* create(u32 protocol);
+	static NetEndpoint* create(u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
+	static void         free(NetEndpoint* ep);
 	static bool         resolvePeer(u32 protocol, Peer &peer, const c8 * host, const c8 * serv, u32 port = 0);
 	static bool         platformInit();
 
