@@ -23,19 +23,24 @@
 
 #include "sync_client.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 using namespace xpf;
 
-TestSyncClient::TestSyncClient()
+TestSyncClient::TestSyncClient(u16 times, u32 latencyMs)
 	: mEndpoint(0)
+	, mPingPongTimes(times)
+	, mPingPongLatencyMs(latencyMs)
 {
-	mBuf = new u16[2048];
+	mBuf = new c8[2048];
 }
 
 TestSyncClient::~TestSyncClient()
 {
 	if (mEndpoint)
 	{
+		mEndpoint->close();
+		join();
 		NetEndpoint::freeEndpoint(mEndpoint);
 		mEndpoint = 0;
 	}
@@ -56,26 +61,31 @@ u32 TestSyncClient::run(u64 udata)
 	if (!ret)
 		return 1;
 
-	for (u16 cnt = 0; cnt < 3000; cnt++)
+	for (u16 cnt = 0; cnt < mPingPongTimes; cnt++)
 	{
-		u16 len = (rand() % 1023) + 1; // 1 ~ 1023
+		u16 datalen = (rand() % 1022) + 1; // 1 ~ 1022
 		u16 sum = 0;
-		for (u16 i = 1; i < len; ++i)
+		for (u16 i = 1; i <= datalen; ++i)
 		{
-			mBuf[i] = rand() % 65536;
-			sum += mBuf[i];
+			const u16 data = (u16)(rand() % 65536);
+			*(u16*)(&mBuf[i * sizeof(u16)]) = data;
+			sum += data;
 		}
-		mBuf[len] = sum;
-		mBuf[0] = len * sizeof(u16);
+		*(u16*)(&mBuf[(datalen + 1) * sizeof(u16)]) = sum;
+		*(u16*)(mBuf) = (datalen + 1) * sizeof(u16);
 
-		s32 tlen = (s32)(mBuf[0] + sizeof(u16));
-		s32 bytes = mEndpoint->send((const c8*)mBuf, tlen, &ec);
+		s32 tlen = (s32)((datalen + 2) * sizeof(u16));
+		s32 bytes = mEndpoint->send(mBuf, tlen, &ec);
 		xpfAssert(bytes == tlen);
+		//printf("TestSyncClient send out %u bytes of data.\n", bytes);
 
 		// waiting for response
-		bytes = mEndpoint->recv((c8*)mBuf, 2048, &ec);
+		bytes = mEndpoint->recv(mBuf, 2, &ec);
 		xpfAssert(bytes == 2);
-		xpfAssert(mBuf[0] == sum);
+		xpfAssert(*(u16*)mBuf == sum);
+
+		if (mPingPongLatencyMs > 0)
+			sleep(mPingPongLatencyMs);
 	}
 
 	return 0;

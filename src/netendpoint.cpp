@@ -278,7 +278,6 @@ public:
 		}
 
 		int acceptedSocket = ::accept(Socket, 0, 0);
-		xpfAssert( ("Expecting a valid accepted socket.", acceptedSocket != INVALID_SOCKET) );
 		if (acceptedSocket == INVALID_SOCKET)
 		{
 			if (errorcode)

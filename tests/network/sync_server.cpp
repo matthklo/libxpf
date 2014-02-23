@@ -23,6 +23,7 @@
 
 #include "sync_server.h"
 #include <set>
+#include <stdio.h>
 
 using namespace xpf;
 
@@ -30,7 +31,7 @@ std::set<TestSyncServer*> _g_server_conns;
 
 TestSyncServer::TestSyncServer()
 	: mEndpoint(0)
-	, mBuf(0), mOffset(0)
+	, mBuf(0), mBufUsed(0)
 	, mAccepting(true)
 {
 	u32 ec = 0;
@@ -39,16 +40,18 @@ TestSyncServer::TestSyncServer()
 }
 
 TestSyncServer::TestSyncServer(NetEndpoint *ep)
-	: mEndpoint(ep), mOffset(0)
+	: mEndpoint(ep), mBufUsed(0)
 	, mAccepting(false)
 {
-	mBuf = new u16[2048];
+	mBuf = new c8[2048];
 }
 
 TestSyncServer::~TestSyncServer()
 {
 	if (mEndpoint)
 	{
+		mEndpoint->close();
+		join();
 		NetEndpoint::freeEndpoint(mEndpoint);
 		mEndpoint = 0;
 	}
@@ -64,7 +67,7 @@ u32 TestSyncServer::run(u64 udata)
 		{
 			NetEndpoint *ep = mEndpoint->accept(&ec);
 			if (!ep)
-				break;
+				return 1;
 			TestSyncServer *s = new TestSyncServer(ep);
 			_g_server_conns.insert(s);
 			s->start();
@@ -74,26 +77,60 @@ u32 TestSyncServer::run(u64 udata)
 
 	while (true)
 	{
-		//s32 bytes = mEndpoint->recv(((c8*)mBuf) + mOffset, (s32)(2048 - mOffset), &ec);
-		//if (bytes == 0)
-		//	break;
-
-		//if (bytes > (s32)mBuf[0])
-		//	mOffset = 
-		//else
-		//	mOffset = 0;
-
-		u16 sum = 0;
-		bool verified = false;
-		for (u16 i = 0; i < mBuf[0]; ++i)
+		// fill buf
+		const s32 available = (s32)(2048 - mBufUsed);
+		s32 bytes = mEndpoint->recv(mBuf + mBufUsed, available, &ec);
+		if (bytes == 0)
 		{
-			if (i != mBuf[0] - 1)
-				sum += mBuf[i];
-			else
-				verified = (sum == mBuf[i]);
+			mBufUsed = 0;
+			break;
 		}
-		xpfAssert(verified);
+		const u16 tbytes = bytes + mBufUsed;
 
+		// consume packet
+		u16 idx = 0;
+		while (true)
+		{
+			u16 sum = 0;
+			u16 packetlen = *(u16*)(&mBuf[idx]) + sizeof(u16);
+			xpfAssert(packetlen <= 2048);
+
+			if (idx + packetlen > tbytes)
+			{
+				printf("Truncated packet data.\n");
+				mBufUsed = tbytes - idx;
+				if (mBufUsed > 0)
+					memmove(mBuf, &mBuf[idx], mBufUsed);
+				break;
+			}
+
+			bool verified = false;
+			const u16 cnt = *(u16*)(&mBuf[idx]) / sizeof(u16);
+			for (u16 i = 1; i <= cnt; ++i)
+			{
+				if (i != cnt)
+					sum += *(u16*)(&mBuf[idx+(i*sizeof(u16))]);
+				else
+					verified = (sum == *(u16*)(&mBuf[idx + (i*sizeof(u16))]));
+			}
+			xpfAssert(verified);
+			if (!verified)
+			{
+				return 1;
+			}
+			else
+			{
+				bytes = mEndpoint->send((const c8*)&sum, sizeof(u16), &ec);
+				xpfAssert(bytes == sizeof(u16));
+			}
+
+			idx += packetlen;
+			if (idx >= tbytes)
+			{
+				mBufUsed = 0;
+				break;
+			}
+		}
 	}
 	return 0;
 }

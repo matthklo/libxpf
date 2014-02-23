@@ -31,14 +31,16 @@
 class TestSyncClient : public xpf::Thread
 {
 public:
-	TestSyncClient();
+	TestSyncClient(xpf::u16 times, xpf::u32 latencyMs = 100);
 	virtual ~TestSyncClient();
 
 	xpf::u32 run(xpf::u64 udata);
 
 private:
 	xpf::NetEndpoint *mEndpoint;
-	xpf::u16         *mBuf;
+	xpf::c8          *mBuf;
+	xpf::u16          mPingPongTimes;
+	xpf::u32          mPingPongLatencyMs;
 };
 
 

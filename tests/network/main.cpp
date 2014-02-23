@@ -26,8 +26,28 @@
 #include "async_server.h"
 #include "sync_client.h"
 #include "sync_server.h"
+#include <stdlib.h>
+#include <time.h>
+#include <stdio.h>
 
 int main(int argc, char *argv[])
 {
+	srand((unsigned int)time(0));
 
+	TestSyncServer *syncServ = new TestSyncServer;
+	printf("Sync Server started .\n");
+	syncServ->start();
+	xpf::Thread::sleep(500);
+
+	TestSyncClient *syncClient = new TestSyncClient(100, 0);
+	printf("Sync Client started.\n");
+	syncClient->start();
+	syncClient->join();
+	printf("Sync Client stopped.\n");
+	delete syncClient;
+
+	printf("Sync Server stopping ...\n");
+	delete syncServ;
+	printf("Sync Server stopped .\n");
+	return 0;
 }

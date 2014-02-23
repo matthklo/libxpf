@@ -40,8 +40,8 @@ private:
 	TestSyncServer(xpf::NetEndpoint *ep);
 
 	xpf::NetEndpoint *mEndpoint;
-	xpf::u16         *mBuf;
-	xpf::u16          mOffset;
+	xpf::c8          *mBuf;
+	xpf::u16          mBufUsed;
 	bool              mAccepting;
 };
 
