@@ -91,6 +91,12 @@ int test_sync()
 
 int test_async()
 {
+	TestAsyncServer *asyncServ = new TestAsyncServer(5);
+	asyncServ->start();
+
+
+	asyncServ->stop();
+	delete asyncServ;
 	return 0;
 }
 

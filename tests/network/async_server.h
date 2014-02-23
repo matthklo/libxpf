@@ -24,4 +24,49 @@
 #ifndef _XPF_TEST_ASYNC_SERVER_HDR_
 #define _XPF_TEST_ASYNC_SERVER_HDR_
 
+#include <xpf/platform.h>
+#include <xpf/netiomux.h>
+#include <xpf/thread.h>
+
+#include <vector>
+#include <map>
+
+class WorkerThread : public xpf::Thread
+{
+public:
+	explicit WorkerThread(xpf::NetIoMux *mux);
+	virtual ~WorkerThread();
+	xpf::u32 run(xpf::u64 udata);
+private:
+	xpf::NetIoMux *mMux;
+};
+
+class TestAsyncServer
+{
+public:
+	struct Buffer
+	{
+		xpf::c8  RData[2048];
+		xpf::c8  WData[16];
+		xpf::u16 Used;
+	};
+
+	explicit TestAsyncServer(xpf::u32 threadNum);
+	virtual ~TestAsyncServer();
+
+	void start();
+	void stop();
+
+	// async callbacks (** multi-thread accessing)
+	void RecvCb(xpf::u32 ec, xpf::NetEndpoint* ep, xpf::c8* buf, xpf::u32 bytes);
+	void SendCb(xpf::u32 ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
+	void AcceptCb(xpf::u32 ec, xpf::NetEndpoint* listeningEp, xpf::NetEndpoint* acceptedEp);
+
+private:
+	std::vector<WorkerThread*>   mThreads;
+	xpf::NetIoMux               *mMux;
+	xpf::NetEndpoint            *mListeningEp;
+	std::map<xpf::vptr, xpf::vptr> mBufferMap;
+};
+
 #endif // _XPF_TEST_ASYNC_SERVER_HDR_

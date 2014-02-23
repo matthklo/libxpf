@@ -33,7 +33,7 @@ namespace xpf
 
 class NetIoMuxImpl;
 
-class NetIoMux
+class XPF_API NetIoMux
 {
 public:
 	enum EPlatformMultiplexer
@@ -88,7 +88,7 @@ public:
 private:
 	// Non-copyable
 	NetIoMux(const NetIoMux& that) {}
-	NetIoMux& operator = (const NetIoMux& that) {}
+	NetIoMux& operator = (const NetIoMux& that) { return *this; }
 
 	NetIoMuxImpl *pImpl;
 };

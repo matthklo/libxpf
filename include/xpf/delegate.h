@@ -29,6 +29,12 @@
 #include <utility> // for std::pair
 #ifdef __XPF_PATCHED__
 #include <string>
+
+#define XCALLBACK(x) std::make_pair(this, &x)
+#define XCALLBACK_(x, o) std::make_pair(o, &x)
+#define XCALLBACK_STATIC(x) (&x)
+#define XCALLBACK_FUNCTOR(x) (x)
+
 #endif
 
 // Macros for template metaprogramming
