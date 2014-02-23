@@ -65,6 +65,7 @@ TestAsyncServer::TestAsyncServer(u32 threadNum)
 	mListeningEp = NetEndpoint::create(NetEndpoint::ProtocolIPv4 | NetEndpoint::ProtocolTCP,
 		"localhost", 50123);
 	xpfAssert(mListeningEp != 0);
+	mMux->join(mListeningEp);
 }
 
 TestAsyncServer::~TestAsyncServer()
