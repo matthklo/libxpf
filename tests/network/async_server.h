@@ -29,7 +29,6 @@
 #include <xpf/thread.h>
 
 #include <vector>
-#include <map>
 
 class WorkerThread : public xpf::Thread
 {
@@ -63,10 +62,10 @@ public:
 	void AcceptCb(xpf::u32 ec, xpf::NetEndpoint* listeningEp, xpf::NetEndpoint* acceptedEp);
 
 private:
-	std::vector<WorkerThread*>   mThreads;
-	xpf::NetIoMux               *mMux;
-	xpf::NetEndpoint            *mListeningEp;
-	std::map<xpf::vptr, xpf::vptr> mBufferMap;
+	std::vector<WorkerThread*>      mThreads;
+	std::vector<xpf::NetEndpoint*>  mClients;
+	xpf::NetIoMux                  *mMux;
+	xpf::NetEndpoint               *mListeningEp;
 };
 
 #endif // _XPF_TEST_ASYNC_SERVER_HDR_

@@ -70,6 +70,36 @@ TestAsyncServer::TestAsyncServer(u32 threadNum)
 
 TestAsyncServer::~TestAsyncServer()
 {
+	stop();
+
+	for (std::vector<NetEndpoint*>::iterator it = mClients.begin();
+		it != mClients.end(); ++it)
+	{
+		NetEndpoint *ep = *it;
+		Buffer *b = (Buffer*)ep->getUserData();
+		delete ep;
+		delete b;
+	}
+
+	delete mListeningEp;
+	delete mMux;
+	mMux = 0;
+}
+
+void TestAsyncServer::start()
+{
+	if (mListeningEp)
+		mMux->asyncAccept(mListeningEp, XCALLBACK(TestAsyncServer::AcceptCb));
+
+	for (u32 i = 0; i < mThreads.size(); ++i)
+		mThreads[i]->start();
+}
+
+void TestAsyncServer::stop()
+{
+	if (mThreads.empty())
+		return;
+
 	mMux->disable();
 	printf("Joining async server worker threads ...\n");
 	while (!mThreads.empty())
@@ -86,28 +116,6 @@ TestAsyncServer::~TestAsyncServer()
 		}
 	}
 	printf("All worker threads of async server have been joined.\n");
-
-	for (std::map<vptr, vptr>::iterator it = mBufferMap.begin();
-		it != mBufferMap.end(); ++it)
-	{
-		Buffer *b = (Buffer*)(*it).second;
-		delete b;
-	}
-	mBufferMap.clear();
-
-	delete mMux;
-	mMux = 0;
-}
-
-void TestAsyncServer::start()
-{
-	if (mListeningEp)
-		mMux->asyncAccept(mListeningEp, XCALLBACK(TestAsyncServer::AcceptCb));
-}
-
-void TestAsyncServer::stop()
-{
-
 }
 
 void TestAsyncServer::AcceptCb(u32 ec, NetEndpoint* listeningEp, NetEndpoint* acceptedEp)
@@ -122,10 +130,12 @@ void TestAsyncServer::AcceptCb(u32 ec, NetEndpoint* listeningEp, NetEndpoint* ac
 	{
 		Buffer *b = new Buffer;
 		b->Used = 0;
-		mBufferMap.insert(std::make_pair((vptr)acceptedEp, (vptr)b));
+		acceptedEp->setUserData((vptr)b);
 
 		printf("A new connection accepted.\n");
 		mMux->asyncRecv(acceptedEp, b->RData, 2048, XCALLBACK(TestAsyncServer::RecvCb));
+
+		mMux->asyncAccept(listeningEp, XCALLBACK(TestAsyncServer::AcceptCb));
 	}
 }
 
@@ -137,9 +147,7 @@ void TestAsyncServer::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 	}
 	else
 	{
-		std::map<vptr, vptr>::iterator it = mBufferMap.find((vptr)ep);
-		xpfAssert(it != mBufferMap.end());
-		Buffer *b = (Buffer*)(*it).second;
+		Buffer *b = (Buffer*)ep->getUserData();
 
 		const u16 tbytes = b->Used + bytes;
 		u16 idx = 0;

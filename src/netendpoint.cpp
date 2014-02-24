@@ -512,15 +512,20 @@ public:
 NetEndpoint::NetEndpoint()
 	: pImpl(0)
 	, pAsyncContext(0)
+	, pUserData(0)
 {
 }
 
 NetEndpoint::NetEndpoint(u32 protocol)
+	: pAsyncContext(0)
+	, pUserData(0)
 {
 	pImpl = new NetEndpointImpl(protocol);
 }
 
 NetEndpoint::NetEndpoint(u32 protocol, int socket, NetEndpoint::EStatus status)
+	: pAsyncContext(0)
+	, pUserData(0)
 {
 	pImpl = new NetEndpointImpl(protocol, socket, status);
 }
@@ -669,6 +674,18 @@ u32 NetEndpoint::getProtocol() const
 int NetEndpoint::getSocket() const
 {
 	return pImpl->Socket;
+}
+
+vptr NetEndpoint::getUserData() const
+{
+	return pUserData;
+}
+
+vptr NetEndpoint::setUserData(vptr ud)
+{
+	vptr olddata = pUserData;
+	pUserData = ud;
+	return olddata;
 }
 
 }; // end of namespace xpf

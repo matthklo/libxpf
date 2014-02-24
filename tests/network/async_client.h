@@ -24,4 +24,42 @@
 #ifndef _XPF_TEST_ASYNC_CLIENT_HDR_
 #define _XPF_TEST_ASYNC_CLIENT_HDR_
 
+#include <xpf/platform.h>
+#include <xpf/netiomux.h>
+#include <xpf/thread.h>
+
+#include <vector>
+
+class WorkerThread;
+
+class TestAsyncClient
+{
+public:
+	struct Client
+	{
+		xpf::u16 Checksum;
+		xpf::c8  RData[2];
+		xpf::c8  WData[2048];
+		xpf::u16 Count;
+	};
+
+	explicit TestAsyncClient(xpf::u32 threadNum);
+	virtual ~TestAsyncClient();
+
+	void start();
+	void stop();
+
+	// async callbacks (** multi-thread accessing)
+	void RecvCb(xpf::u32 ec, xpf::NetEndpoint* ep, xpf::c8* buf, xpf::u32 bytes);
+	void SendCb(xpf::u32 ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
+	void ConnectCb(xpf::u32 ec, xpf::NetEndpoint* ep);
+
+private:
+	void sendTestData(xpf::NetEndpoint* connectedEp);
+
+	std::vector<WorkerThread*>   mThreads;
+	xpf::NetEndpoint*            mClients[16];
+	xpf::NetIoMux               *mMux;
+};
+
 #endif // _XPF_TEST_ASYNC_CLIENT_HDR_

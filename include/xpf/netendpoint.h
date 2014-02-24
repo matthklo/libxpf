@@ -90,7 +90,6 @@ public:
 	static NetEndpoint* create(u32 protocol, const c8 *addr, u32 port, u32 *errorcode = 0, u32 backlog = 10);
 	static void         release(NetEndpoint* ep);
 	static bool         resolvePeer(u32 protocol, Peer &peer, const c8 * host, const c8 * serv, u32 port = 0);
-	static bool         platformInit();
 
 	explicit NetEndpoint(u32 protocol);
 	virtual ~NetEndpoint();
@@ -109,18 +108,19 @@ public:
 	void         shutdown ( EShutdownDir dir, u32 *errorcode = 0);
 	void         close    ( );
 
-	inline EStatus    getStatus() const;
-	inline const c8*  getAddress() const;
-	inline u32        getPort() const;
-	inline u32        getProtocol() const;
-	inline s32        getSocket() const;
-
-	inline vptr       getAsyncContext() const { return pAsyncContext; }
-	inline vptr       setAsyncContext(vptr newdata) { vptr olddata = pAsyncContext; pAsyncContext = newdata; return olddata; }
+	EStatus      getStatus() const;
+	const c8*    getAddress() const;
+	u32          getPort() const;
+	u32          getProtocol() const;
+	s32          getSocket() const;
+	vptr         getUserData() const;
+	vptr         setUserData(vptr ud);
 
 	// TODO: getsockopt setsockopt
 
 private:
+	static bool       platformInit();
+
 	NetEndpoint();
 	NetEndpoint(u32 protocol, int socket, EStatus status);
 
@@ -129,9 +129,12 @@ private:
 	NetEndpoint& operator = (const NetEndpoint& that) { return *this; }
 
 	inline void setStatus(EStatus status);
+	inline vptr       getAsyncContext() const { return pAsyncContext; }
+	inline vptr       setAsyncContext(vptr newdata) { vptr olddata = pAsyncContext; pAsyncContext = newdata; return olddata; }
 
 	NetEndpointImpl *pImpl;
 	vptr             pAsyncContext;
+	vptr             pUserData;
 
 	friend class NetIoMuxImpl;
 };
