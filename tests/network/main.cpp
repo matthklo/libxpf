@@ -22,6 +22,7 @@
 ********************************************************************************/
 
 #include <xpf/platform.h>
+#include <xpf/string.h>
 #include "async_client.h"
 #include "async_server.h"
 #include "sync_client.h"
@@ -92,8 +93,13 @@ int test_sync()
 int test_async()
 {
 	TestAsyncServer *asyncServ = new TestAsyncServer(5);
+	TestAsyncClient *asyncClient = new TestAsyncClient(5);
 	asyncServ->start();
 
+	xpf::Thread::sleep(100);
+	asyncClient->start();
+	asyncClient->stop();
+	delete asyncClient;
 
 	asyncServ->stop();
 	delete asyncServ;
@@ -103,7 +109,17 @@ int test_async()
 int main(int argc, char *argv[])
 {
 	srand((unsigned int)time(0));
-	test_sync();
+
+	if ((argc >= 2) && (xpf::string(argv[1]) == "async"))
+	{
+		printf("==== Running async test ====\n");
+		test_async();
+	}
+	else
+	{
+		printf("==== Running sync test ====\n");
+		test_sync();
+	}
 
 	return 0;
 }

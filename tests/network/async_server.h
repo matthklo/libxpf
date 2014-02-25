@@ -40,7 +40,7 @@ private:
 	xpf::NetIoMux *mMux;
 };
 
-class TestAsyncServer
+class TestAsyncServer : public xpf::NetIoMuxCallback
 {
 public:
 	struct Buffer
@@ -57,9 +57,10 @@ public:
 	void stop();
 
 	// async callbacks (** multi-thread accessing)
-	void RecvCb(xpf::u32 ec, xpf::NetEndpoint* ep, xpf::c8* buf, xpf::u32 bytes);
-	void SendCb(xpf::u32 ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
-	void AcceptCb(xpf::u32 ec, xpf::NetEndpoint* listeningEp, xpf::NetEndpoint* acceptedEp);
+	void onIoCompleted(xpf::NetIoMux::EIoType type, xpf::NetEndpoint::EError ec, xpf::NetEndpoint *sep, xpf::vptr tepOrPeer, const xpf::c8 *buf, xpf::u32 len);
+	void AcceptCb(xpf::NetEndpoint::EError ec, xpf::NetEndpoint* listeningEp, xpf::NetEndpoint* acceptedEp);
+	void RecvCb(xpf::NetEndpoint::EError ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
+	void SendCb(xpf::NetEndpoint::EError ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
 
 private:
 	std::vector<WorkerThread*>      mThreads;

@@ -32,15 +32,15 @@
 
 class WorkerThread;
 
-class TestAsyncClient
+class TestAsyncClient : public xpf::NetIoMuxCallback
 {
 public:
 	struct Client
 	{
 		xpf::u16 Checksum;
+		xpf::u16 Count;
 		xpf::c8  RData[2];
 		xpf::c8  WData[2048];
-		xpf::u16 Count;
 	};
 
 	explicit TestAsyncClient(xpf::u32 threadNum);
@@ -50,7 +50,8 @@ public:
 	void stop();
 
 	// async callbacks (** multi-thread accessing)
-	void RecvCb(xpf::u32 ec, xpf::NetEndpoint* ep, xpf::c8* buf, xpf::u32 bytes);
+	void onIoCompleted(xpf::NetIoMux::EIoType type, xpf::NetEndpoint::EError ec, xpf::NetEndpoint *sep, xpf::vptr tepOrPeer, const xpf::c8 *buf, xpf::u32 len);
+	void RecvCb(xpf::u32 ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
 	void SendCb(xpf::u32 ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes);
 	void ConnectCb(xpf::u32 ec, xpf::NetEndpoint* ep);
 

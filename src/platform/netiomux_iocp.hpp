@@ -40,40 +40,21 @@
 namespace xpf
 {
 
+struct NetIoMuxOverlapped : public OVERLAPPED
+{
+	WSABUF            Buffer;
+	u32               IoType;
+	NetIoMuxCallback *Callback;
+	SOCKET            AcceptingSocket;
+	NetEndpoint::Peer PeerData;
+};
+
 struct IocpAsyncContext
 {
 	IocpAsyncContext()
-		: pAcceptEx(0), pConnectEx(0)
-	{
-		resetReadOverlapped();
-		resetWriteOverlapped();
-		AcceptingPeerSocket = INVALID_SOCKET;
-
-		RecvBuf.buf = 0;
-		RecvBuf.len = 0;
-		SendBuf.buf = 0;
-		SendBuf.len = 0;
-	}
-
-	void resetReadOverlapped() { ::memset(&ReadOverlapped, 0, sizeof(OVERLAPPED)); }
-	void resetWriteOverlapped() { ::memset(&WriteOverlapped, 0, sizeof(OVERLAPPED)); }
-
-	OVERLAPPED ReadOverlapped;
-	OVERLAPPED WriteOverlapped;
+		: pAcceptEx(0), pConnectEx(0) {}
 	LPFN_ACCEPTEX  pAcceptEx;
 	LPFN_CONNECTEX pConnectEx;
-	WSABUF    RecvBuf;
-	WSABUF	  SendBuf;
-
-	NetIoMux::RecvCallback RecvCb;
-	NetIoMux::RecvFromCallback RecvFromCb;
-	NetIoMux::SendCallback SendCb;
-	NetIoMux::SendToCallback SendToCb;
-	NetIoMux::AcceptCallback AcceptCb;
-	NetIoMux::ConnectCallback ConnectCb;
-
-	NetEndpoint::Peer PeerData;
-	SOCKET AcceptingPeerSocket;
 };
 
 class NetIoMuxImpl
@@ -110,218 +91,217 @@ public:
 	{
 		while (bEnable)
 		{
-			if (NetIoMux::RS_DISABLED == runOnce(10))
+			if (NetIoMux::ERS_DISABLED == runOnce(10))
 				break;
 		}
 	}
 
-	NetIoMux::RunningStaus runOnce(u32 timeoutMs)
+	NetIoMux::ERunningStaus runOnce(u32 timeoutMs)
 	{
 		DWORD bytes = 0;
 		ULONG_PTR key = 0;
-		OVERLAPPED *odata = 0;
-		BOOL ret = ::GetQueuedCompletionStatus(mhIocp, &bytes, &key, &odata, timeoutMs);
+		NetIoMuxOverlapped *odata = 0;
+		BOOL ret = ::GetQueuedCompletionStatus(mhIocp, &bytes, &key, (LPOVERLAPPED*)&odata, timeoutMs);
 		if (FALSE == ret)
 		{
 			if ((odata == 0) && (GetLastError() != ERROR_ABANDONED_WAIT_0))
-				return NetIoMux::RS_TIMEOUT;
-			return NetIoMux::RS_DISABLED;
+				return NetIoMux::ERS_TIMEOUT;
+			return NetIoMux::ERS_DISABLED;
 		}
 
 		NetEndpoint *ep = (NetEndpoint*)key;
 		ret = ::GetOverlappedResult((HANDLE)ep->getSocket(), odata, &bytes, FALSE);
 
 		NetEndpoint::EStatus st = ep->getStatus();
-		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
-		if (NetEndpoint::ESTAT_ACCEPTING == st)
+		NetIoMuxCallback *cb = odata->Callback;
+		NetIoMux::EIoType iotype = (NetIoMux::EIoType)odata->IoType;
+		switch (iotype)
 		{
+		case NetIoMux::EIT_ACCEPT:
+			xpfAssert(NetEndpoint::ESTAT_ACCEPTING == st);
+			ep->setStatus(NetEndpoint::ESTAT_LISTENING);
 			if (ret == FALSE)
 			{
-				ctx->AcceptCb(NetEndpoint::EE_ACCEPT, ep, 0);
+				cb->onIoCompleted(iotype, NetEndpoint::EE_ACCEPT, ep, 0, 0, 0);
 			}
 			else
 			{
 				int listeningSocket = ep->getSocket();
-				int ec = setsockopt(ctx->AcceptingPeerSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
+				xpfAssert(("Expecting valid peer socket.", odata->AcceptingSocket != INVALID_SOCKET));
+
+				int ec = setsockopt(odata->AcceptingSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
 					(char *)&listeningSocket, sizeof(listeningSocket));
 				xpfAssert(("Failed to update accepted context on newly connected socket.", ec == 0));
 
-				NetEndpoint *aep = new NetEndpoint(ep->getProtocol(), ctx->AcceptingPeerSocket, NetEndpoint::ESTAT_CONNECTED);
-				join(aep);
-				ctx->AcceptCb(NetEndpoint::EE_SUCCESS, ep, aep);
-				ctx->AcceptingPeerSocket = INVALID_SOCKET;
+				NetEndpoint *tep = new NetEndpoint(ep->getProtocol(), odata->AcceptingSocket, NetEndpoint::ESTAT_CONNECTED);
+				join(tep);
+				cb->onIoCompleted(iotype, NetEndpoint::EE_SUCCESS, ep, (vptr)tep, 0, 0);
 			}
-			ep->setStatus(NetEndpoint::ESTAT_LISTENING);
-			ctx->AcceptCb.Clear();
-			ctx->resetReadOverlapped();
-		}
-		else if (NetEndpoint::ESTAT_CONNECTING == st)
-		{
+			break;
+
+		case NetIoMux::EIT_CONNECT:
+			xpfAssert(NetEndpoint::ESTAT_CONNECTING == st);
 			if (ret == FALSE)
 			{
 				ep->setStatus(NetEndpoint::ESTAT_INIT);
-				ctx->ConnectCb(NetEndpoint::EE_CONNECT, ep);
+				cb->onIoCompleted(iotype, NetEndpoint::EE_CONNECT, ep, 0, 0, 0);
 			}
 			else
 			{
 				ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
 				int ec = setsockopt(ep->getSocket(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
 				xpfAssert(("Failed to update connected context on outgoing socket.", ec == 0));
-				ctx->ConnectCb(NetEndpoint::EE_SUCCESS, ep);
+				cb->onIoCompleted(iotype, NetEndpoint::EE_SUCCESS, ep, 0, 0, 0);
 			}
-			ctx->ConnectCb.Clear();
-			ctx->resetWriteOverlapped();
-		}
-		else if(odata == &ctx->ReadOverlapped)
-		{
-			if (!ctx->RecvCb.IsEmpty())
-			{
-				ctx->RecvCb((ret)?NetEndpoint::EE_SUCCESS:NetEndpoint::EE_RECV, ep, ctx->RecvBuf.buf, bytes);
-				ctx->RecvCb.Clear();
-			}
-			else
-			{
-				ctx->RecvFromCb((ret) ? NetEndpoint::EE_SUCCESS : NetEndpoint::EE_RECV, ep, &ctx->PeerData, ctx->RecvBuf.buf, bytes);
-				ctx->RecvFromCb.Clear();
-			}
-			ctx->RecvBuf.buf = 0;
-			ctx->RecvBuf.len = 0;
-			ctx->resetReadOverlapped();
-		}
-		else if (odata == &ctx->WriteOverlapped)
-		{
-			if (!ctx->SendCb.IsEmpty())
-			{
-				ctx->SendCb((ret) ? NetEndpoint::EE_SUCCESS : NetEndpoint::EE_SEND, ep, ctx->SendBuf.buf, bytes);
-				ctx->SendCb.Clear();
-			}
-			else
-			{
-				const NetEndpoint::Peer *p = (const NetEndpoint::Peer*)&ctx->PeerData.Data[XPF_NETENDPOINT_MAXADDRLEN - sizeof(vptr)];
-				ctx->SendToCb((ret) ? NetEndpoint::EE_SUCCESS : NetEndpoint::EE_SEND, ep, p, ctx->SendBuf.buf, bytes);
-				ctx->SendToCb.Clear();
-			}
-			ctx->SendBuf.buf = 0;
-			ctx->SendBuf.len = 0;
-			ctx->resetWriteOverlapped();
-		}
-		else
-		{
-			xpfAssert(("Unrecognized overlapped data source.", false));
+			break;
+
+		case NetIoMux::EIT_RECV:
+			cb->onIoCompleted(iotype, 
+				(ret)?NetEndpoint::EE_SUCCESS:NetEndpoint::EE_RECV, ep, 0, odata->Buffer.buf, bytes);
+			break;
+
+		case NetIoMux::EIT_RECVFROM:
+			cb->onIoCompleted(iotype, 
+				(ret)?NetEndpoint::EE_SUCCESS:NetEndpoint::EE_RECV, ep, (vptr)&odata->PeerData, odata->Buffer.buf, bytes);
+			break;
+
+		case NetIoMux::EIT_SEND:
+			cb->onIoCompleted(iotype,
+				(ret) ? NetEndpoint::EE_SUCCESS : NetEndpoint::EE_SEND, ep, 0, odata->Buffer.buf, bytes);
+			break;
+
+		case NetIoMux::EIT_SENDTO:
+			cb->onIoCompleted(iotype,
+				(ret) ? NetEndpoint::EE_SUCCESS : NetEndpoint::EE_SEND, ep, (vptr)&odata->PeerData, odata->Buffer.buf, bytes);
+			break;
+
+		default:
+			xpfAssert(("Unrecognized EIoType.", false));
+			break;
 		}
 
-		return NetIoMux::RS_NORMAL;
+		// TODO: recycle / reuse NetIoMuxOverlapped.
+		delete odata;
+
+		return NetIoMux::ERS_NORMAL;
 	}
 
-	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvCallback cb)
+	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 	{
-		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
-		xpfAssert(("Unprovisioned netendpoint.", ctx != 0));
+		const NetIoMux::EIoType iotype = NetIoMux::EIT_RECV;
 
 		const NetEndpoint::EStatus stat = ep->getStatus();
 		xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
 		if (NetEndpoint::ESTAT_CONNECTED != stat)
 		{
-			cb(NetEndpoint::EE_INVALID_OP, ep, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
 			return;
 		}
 
-		ctx->RecvCb = cb;
-		ctx->RecvBuf.buf = buf;
-		ctx->RecvBuf.len = buflen;
+		NetIoMuxOverlapped *odata = new NetIoMuxOverlapped;
+		::memset(odata, 0, sizeof(NetIoMuxOverlapped));
+		odata->Buffer.buf = buf;
+		odata->Buffer.len = buflen;
+		odata->IoType = iotype;
+		odata->Callback = cb;
 
-		int ec = WSARecv(ep->getSocket(), &ctx->RecvBuf, 1, 0, 0, &ctx->ReadOverlapped, 0);
+		DWORD flags = 0;
+		int ec = WSARecv(ep->getSocket(), &odata->Buffer, 1, 0, &flags, (LPWSAOVERLAPPED)odata, 0);
 		if ((ec != 0) && (ERROR_IO_PENDING != WSAGetLastError()))
 		{
-			ctx->RecvCb.Clear();
-			cb(NetEndpoint::EE_RECV, ep, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_RECV, ep, 0, buf, 0);
 		}
 	}
 
-	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
+	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 	{
-		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
-		xpfAssert(("Unprovisioned netendpoint.", ctx != 0));
+		const NetIoMux::EIoType iotype = NetIoMux::EIT_RECVFROM;
 
 		const NetEndpoint::EStatus stat = ep->getStatus();
 		xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
 		if (NetEndpoint::ESTAT_CONNECTED != stat)
 		{
-			cb(NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
 			return;
 		}
 
-		ctx->RecvFromCb = cb;
-		ctx->RecvBuf.buf = buf;
-		ctx->RecvBuf.len = buflen;
-		ctx->PeerData.Length = XPF_NETENDPOINT_MAXADDRLEN;
+		NetIoMuxOverlapped *odata = new NetIoMuxOverlapped;
+		::memset(odata, 0, sizeof(NetIoMuxOverlapped));
+		odata->Buffer.buf = buf;
+		odata->Buffer.len = buflen;
+		odata->IoType = iotype;
+		odata->Callback = cb;
+		odata->PeerData.Length = XPF_NETENDPOINT_MAXADDRLEN;
 
-		int ec = WSARecvFrom(ep->getSocket(), &ctx->RecvBuf, 1, 0, 0, (sockaddr*)ctx->PeerData.Data,
-			&ctx->PeerData.Length, &ctx->ReadOverlapped, 0);
+		DWORD flags = 0;
+		int ec = WSARecvFrom(ep->getSocket(), &odata->Buffer, 1, 0, &flags, (sockaddr*)odata->PeerData.Data,
+			&odata->PeerData.Length, (LPWSAOVERLAPPED)odata, 0);
 		if ((ec != 0) && (ERROR_IO_PENDING != WSAGetLastError()))
 		{
-			ctx->RecvFromCb.Clear();
-			cb(NetEndpoint::EE_RECV, ep, 0, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_RECV, ep, 0, buf, 0);
 		}
 	}
 
-	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMux::SendCallback cb)
+	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 	{
-		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
-		xpfAssert(("Unprovisioned netendpoint.", ctx != 0));
+		const NetIoMux::EIoType iotype = NetIoMux::EIT_SEND;
 
 		const NetEndpoint::EStatus stat = ep->getStatus();
 		xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
 		if (NetEndpoint::ESTAT_CONNECTED != stat)
 		{
-			cb(NetEndpoint::EE_INVALID_OP, ep, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
 			return;
 		}
 
-		ctx->SendCb = cb;
-		ctx->SendBuf.buf = (c8*)buf;
-		ctx->SendBuf.len = buflen;
+		NetIoMuxOverlapped *odata = new NetIoMuxOverlapped;
+		::memset(odata, 0, sizeof(NetIoMuxOverlapped));
+		odata->Buffer.buf = (c8*)buf;
+		odata->Buffer.len = buflen;
+		odata->IoType = iotype;
+		odata->Callback = cb;
 
-		int ec = WSASend(ep->getSocket(), &ctx->SendBuf, 1, 0, 0, &ctx->WriteOverlapped, 0);
+		int ec = WSASend(ep->getSocket(), &odata->Buffer, 1, 0, 0, (LPWSAOVERLAPPED)odata, 0);
 		if ((ec != 0) && (ERROR_IO_PENDING != WSAGetLastError()))
 		{
-			ctx->SendCb.Clear();
-			cb(NetEndpoint::EE_SEND, ep, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_SEND, ep, 0, buf, 0);
 		}
 	}
 
-	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMux::SendToCallback cb)
+	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 	{
-		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
-		xpfAssert(("Unprovisioned netendpoint.", ctx != 0));
+		const NetIoMux::EIoType iotype = NetIoMux::EIT_SENDTO;
 
 		const NetEndpoint::EStatus stat = ep->getStatus();
 		xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
 		if (NetEndpoint::ESTAT_CONNECTED != stat)
 		{
-			cb(NetEndpoint::EE_INVALID_OP, ep, peer, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, (vptr)peer, buf, 0);
 			return;
 		}
 
-		ctx->SendToCb = cb;
-		ctx->SendBuf.buf = (c8*)buf;
-		ctx->SendBuf.len = buflen;
-		// hack: store 'peer' in the end of ctx->PeerData.Data;
-		*(vptr*)(&ctx->PeerData.Data[XPF_NETENDPOINT_MAXADDRLEN - sizeof(vptr)]) = (vptr)peer;
+		NetIoMuxOverlapped *odata = new NetIoMuxOverlapped;
+		::memset(odata, 0, sizeof(NetIoMuxOverlapped));
+		odata->Buffer.buf = (c8*)buf;
+		odata->Buffer.len = buflen;
+		odata->IoType = iotype;
+		odata->Callback = cb;
+		odata->PeerData.Length = peer->Length;
+		::memcpy(odata->PeerData.Data, peer->Data, peer->Length);
 
 		const u32 proto = ep->getProtocol();
-		const s32 addrlen = (proto & NetEndpoint::ProtocolIPv4) ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
-		int ec = WSASendTo(ep->getSocket(), &ctx->SendBuf, 1, 0, 0, 
-			(const sockaddr*)peer->Data, addrlen, &ctx->WriteOverlapped, 0);
+		int ec = WSASendTo(ep->getSocket(), &odata->Buffer, 1, 0, 0, 
+			(const sockaddr*)odata->PeerData.Data, odata->PeerData.Length, (LPWSAOVERLAPPED)odata, 0);
 		if ((ec != 0) && (ERROR_IO_PENDING != WSAGetLastError()))
 		{
-			ctx->SendToCb.Clear();
-			cb(NetEndpoint::EE_SEND, ep, peer, buf, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_SEND, ep, (vptr)peer, buf, 0);
 		}
 	}
 
-	void asyncAccept(NetEndpoint *ep, NetIoMux::AcceptCallback cb)
+	void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb)
 	{
+		const NetIoMux::EIoType iotype = NetIoMux::EIT_ACCEPT;
+
 		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
 		xpfAssert( ("Unprovisioned netendpoint.", ctx != 0) );
 
@@ -329,7 +309,7 @@ public:
 		xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_LISTENING == stat));
 		if (NetEndpoint::ESTAT_LISTENING != stat)
 		{
-			cb(NetEndpoint::EE_INVALID_OP, ep, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, 0, 0);
 			return;
 		}
 
@@ -344,55 +324,47 @@ public:
 			xpfAssert(("Unable to retrieve AcceptEx func ptr.", ec != SOCKET_ERROR));
 			if (ec == SOCKET_ERROR)
 			{
-				cb(NetEndpoint::EE_ACCEPT, ep, 0);
+				cb->onIoCompleted(iotype, NetEndpoint::EE_ACCEPT, ep, 0, 0, 0);
 				return;
 			}
 		}
 
+		NetIoMuxOverlapped *odata = new NetIoMuxOverlapped;
+		::memset(odata, 0, sizeof(NetIoMuxOverlapped));
+		odata->IoType = iotype;
+		odata->Callback = cb;
+
 		u32 proto = ep->getProtocol();
-		ctx->AcceptingPeerSocket = socket(
+		odata->AcceptingSocket = socket(
 			(proto & NetEndpoint::ProtocolIPv4) ? AF_INET : AF_INET6,
 			(proto & NetEndpoint::ProtocolTCP) ? SOCK_STREAM : SOCK_DGRAM,
 			(proto & NetEndpoint::ProtocolTCP) ? IPPROTO_TCP : IPPROTO_UDP
 			);
-		xpfAssert(("Unable to create socket for accepting peer", ctx->AcceptingPeerSocket != INVALID_SOCKET));
-		if (ctx->AcceptingPeerSocket == INVALID_SOCKET)
+		xpfAssert(("Unable to create socket for accepting peer", odata->AcceptingSocket != INVALID_SOCKET));
+		if (odata->AcceptingSocket == INVALID_SOCKET)
 		{
-			cb(NetEndpoint::EE_ACCEPT, ep, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_ACCEPT, ep, 0, 0, 0);
 			return;
 		}
 
 		ep->setStatus(NetEndpoint::ESTAT_ACCEPTING);
-		ctx->AcceptCb = cb;
 
 		DWORD bytes = 0;
 		const int addrlen = (proto & NetEndpoint::ProtocolIPv4) ? sizeof(sockaddr_in)+16 : sizeof(sockaddr_in6)+16;
-		BOOL ret = ctx->pAcceptEx(ep->getSocket(), ctx->AcceptingPeerSocket, ctx->PeerData.Data,
-			0, addrlen, addrlen, &bytes, &ctx->ReadOverlapped);
+		BOOL ret = ctx->pAcceptEx(ep->getSocket(), odata->AcceptingSocket, odata->PeerData.Data,
+			0, addrlen, addrlen, &bytes, (LPWSAOVERLAPPED)odata);
 
-		if (TRUE == ret)
+		if ((ret == FALSE) && (ERROR_IO_PENDING != WSAGetLastError()))
 		{
 			ep->setStatus(NetEndpoint::ESTAT_LISTENING);
-			ctx->AcceptCb.Clear();
-
-			int listeningSocket = ep->getSocket();
-			int ec = setsockopt(ctx->AcceptingPeerSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
-				(char *)&listeningSocket, sizeof(listeningSocket));
-			xpfAssert(("Failed to update accepted context on newly connected socket.", ec == 0));
-
-			NetEndpoint *aep = new NetEndpoint(ep->getProtocol(), ctx->AcceptingPeerSocket, NetEndpoint::ESTAT_CONNECTED);
-			join(aep);
-			cb(NetEndpoint::EE_SUCCESS, ep, aep);
-			ctx->AcceptingPeerSocket = INVALID_SOCKET;
-		}
-		else if (ERROR_IO_PENDING != WSAGetLastError())
-		{
-			cb(NetEndpoint::EE_ACCEPT, ep, 0);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_ACCEPT, ep, 0, 0, 0);
 		}
 	}
 
-	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMux::ConnectCallback cb)
+	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb)
 	{
+		const NetIoMux::EIoType iotype = NetIoMux::EIT_CONNECT;
+
 		IocpAsyncContext *ctx = (IocpAsyncContext*)ep->getAsyncContext();
 		xpfAssert(("Unprovisioned netendpoint.", ctx != 0));
 
@@ -400,14 +372,17 @@ public:
 		xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_INIT == stat));
 		if (NetEndpoint::ESTAT_INIT != stat)
 		{
-			cb(NetEndpoint::EE_INVALID_OP, ep);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, 0, 0);
 			return;
 		}
 
+		// TODO: Addr resolving is done in sync (blocking). 
+		//       Should we just take NetEndpoint::Peer as input and require
+		//       the outsider to do the addr-resolving?
 		NetEndpoint::Peer peer;
 		if (!NetEndpoint::resolvePeer(ep->getProtocol(), peer, host, 0, port))
 		{
-			cb(NetEndpoint::EE_RESOLVE, ep);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_RESOLVE, ep, 0, 0, 0);
 			return;
 		}
 
@@ -422,29 +397,48 @@ public:
 			xpfAssert(("Unable to retrieve ConnectEx func ptr.", ec != SOCKET_ERROR));
 			if (ec == SOCKET_ERROR)
 			{
-				cb(NetEndpoint::EE_CONNECT, ep);
+				cb->onIoCompleted(iotype, NetEndpoint::EE_CONNECT, ep, 0, 0, 0);
 				return;
 			}
 		}
 
-		ep->setStatus(NetEndpoint::ESTAT_CONNECTING);
-		ctx->ConnectCb = cb;
-
-		BOOL ret = ctx->pConnectEx(ep->getSocket(), (const sockaddr*)peer.Data, peer.Length,
-			0, 0, 0, &ctx->WriteOverlapped);
-
-		if (TRUE == ret)
+		// Caveat: The socket provided to ConnectEx() must be bound.
+		int ec = 0;
+		if (ep->getProtocol() & NetEndpoint::ProtocolIPv4)
 		{
-			ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
-			ctx->ConnectCb.Clear();
-
-			int ec = setsockopt(ep->getSocket(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
-			xpfAssert(("Failed to update connected context on outgoing socket.", ec == 0));
-			cb(NetEndpoint::EE_SUCCESS, ep);
+			sockaddr_in sa = {0};
+			sa.sin_family = AF_INET;
+			sa.sin_addr.s_addr = INADDR_ANY;
+			ec = ::bind(ep->getSocket(), (const sockaddr*)&sa, sizeof(sockaddr_in));
 		}
-		else if (ERROR_IO_PENDING != WSAGetLastError())
+		else
 		{
-			cb(NetEndpoint::EE_CONNECT, ep);
+			sockaddr_in6 sa = {0};
+			sa.sin6_family = AF_INET6;
+			sa.sin6_addr = in6addr_any;
+			ec = ::bind(ep->getSocket(), (const sockaddr*)&sa, sizeof(sockaddr_in6));
+		}
+		if (0 != ec)
+		{
+			cb->onIoCompleted(iotype, NetEndpoint::EE_BIND, ep, 0, 0, 0);
+			return;
+		}
+
+		NetIoMuxOverlapped *odata = new NetIoMuxOverlapped;
+		::memset(odata, 0, sizeof(NetIoMuxOverlapped));
+		odata->IoType = iotype;
+		odata->Callback = cb;
+
+		ep->setStatus(NetEndpoint::ESTAT_CONNECTING);
+
+		// After socket has been bound, we can finally calls ConnectEx.
+		BOOL ret = ctx->pConnectEx(ep->getSocket(), (const sockaddr*)peer.Data, peer.Length,
+			0, 0, 0, (LPWSAOVERLAPPED)odata);
+
+		if ((FALSE == ret) && (ERROR_IO_PENDING != WSAGetLastError()))
+		{
+			ep->setStatus(NetEndpoint::ESTAT_INIT);
+			cb->onIoCompleted(iotype, NetEndpoint::EE_CONNECT, ep, 0, 0, 0);
 		}
 	}
 

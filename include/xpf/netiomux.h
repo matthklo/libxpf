@@ -26,12 +26,12 @@
 
 #include "platform.h"
 #include "netendpoint.h"
-#include "delegate.h"
 
 namespace xpf
 {
 
 class NetIoMuxImpl;
+class NetIoMuxCallback;
 
 class XPF_API NetIoMux
 {
@@ -46,19 +46,23 @@ public:
 		EPM_UNKNOWN,
 	};
 
-	enum RunningStaus
+	enum ERunningStaus
 	{
-		RS_NORMAL = 0,
-		RS_TIMEOUT,
-		RS_DISABLED,
+		ERS_NORMAL = 0,
+		ERS_TIMEOUT,
+		ERS_DISABLED,
 	};
 
-	typedef Delegate<void(u32, NetEndpoint*, c8*, u32)> RecvCallback; // ec, ep, buf, bytes
-	typedef Delegate<void(u32, NetEndpoint*, NetEndpoint::Peer*, c8*, u32)> RecvFromCallback; // ec, ep, peer, buf, bytes
-	typedef Delegate<void(u32, NetEndpoint*, const c8*, u32)> SendCallback; // ec, ep, buf, bytes
-	typedef Delegate<void(u32, NetEndpoint*, const NetEndpoint::Peer*, const c8*, u32)> SendToCallback; // ec, ep, peer, buf, bytes
-	typedef Delegate<void(u32, NetEndpoint*, NetEndpoint*)> AcceptCallback; // ec, ep, accepted ep
-	typedef Delegate<void(u32, NetEndpoint*)> ConnectCallback; // ec, connected ep
+	enum EIoType
+	{
+		EIT_INVALID = 0,
+		EIT_RECV,
+		EIT_RECVFROM,
+		EIT_SEND,
+		EIT_SENDTO,
+		EIT_ACCEPT,
+		EIT_CONNECT,
+	};
 
 	NetIoMux();
 	virtual ~NetIoMux();
@@ -68,16 +72,16 @@ public:
 	inline void disable() { enable(false); }
 
 	// For worker threads.
-	void         run();
-	RunningStaus runOnce(u32 timeoutMs = 0xffffffff);
+	void          run();
+	ERunningStaus runOnce(u32 timeoutMs = 0xffffffff);
 
 	// For I/O control
-	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, RecvCallback cb);
-	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, RecvFromCallback cb);
-	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, SendCallback cb);
-	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, SendToCallback cb);
-	void asyncAccept(NetEndpoint *ep, AcceptCallback cb);
-	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, ConnectCallback cb);
+	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb);
+	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb);
+	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb);
+	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb);
+	void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb);
+	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb);
 
 	// Join/depart the endpoint to/from netiomux.
 	bool join(NetEndpoint *ep);
@@ -91,6 +95,13 @@ private:
 	NetIoMux& operator = (const NetIoMux& that) { return *this; }
 
 	NetIoMuxImpl *pImpl;
+};
+
+
+class NetIoMuxCallback
+{
+public:
+	virtual void onIoCompleted(NetIoMux::EIoType type, NetEndpoint::EError ec, NetEndpoint *sep, vptr tepOrPeer, const c8 *buf, u32 len) = 0;
 };
 
 }; // end of namespace xpf

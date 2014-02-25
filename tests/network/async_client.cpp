@@ -74,12 +74,13 @@ TestAsyncClient::~TestAsyncClient()
 
 void TestAsyncClient::start()
 {
+	printf("[Client] Starting worker threads ...\n");
 	for (u32 i = 0; i < mThreads.size(); ++i)
 		mThreads[i]->start();
 
 	for (u32 i = 0; i < 16; ++i)
 	{
-		mMux->asyncConnect(mClients[i], "localhost", 50123, XCALLBACK(TestAsyncClient::ConnectCb));
+		mMux->asyncConnect(mClients[i], "localhost", 50123, this);
 	}
 }
 
@@ -91,26 +92,32 @@ void TestAsyncClient::stop()
 	while (true)
 	{
 		u32 i = 0;
+		u32 errcnt = 0;
+		u32 donecnt = 0;
 		for (; i < 16; ++i)
 		{
 			Client *c = (Client*)mClients[i]->getUserData();
-			if (c->Count >= 1000)
-				break;
+			if (c->Count >= 9999)
+				errcnt++;
+			else if (c->Count <= 1000)
+				donecnt += c->Count;
 		}
-		if (i == 16)
+		if (donecnt == 16 * 1000)
 		{
-			printf("Async client: All jobs done.\n");
+			printf("[Client] All jobs done.\n");
+			for (u32 j=0; j<16; ++j)
+				printf("[Client] job count: [%u] %u.\n", j, ((Client*)mClients[j]->getUserData())->Count);
 			break;
 		}
 		else
 		{
-			printf("Async client: waiting ...\n");
+			printf("[Client] waiting (%u / 16000)...\n", donecnt);
 			Thread::sleep(1000);
 		}
 	}
 
 	mMux->disable();
-	printf("Joining async client worker threads ...\n");
+	printf("[Client] Joining async client worker threads ...\n");
 	while (!mThreads.empty())
 	{
 		for (u32 i = 0; i < mThreads.size(); ++i)
@@ -124,17 +131,42 @@ void TestAsyncClient::stop()
 			}
 		}
 	}
-	printf("All worker threads of async client have been joined.\n");
+	printf("[Client] All worker threads of async client have been joined.\n");
 }
 
-void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
+void TestAsyncClient::onIoCompleted(
+	NetIoMux::EIoType type, 
+	NetEndpoint::EError ec, 
+	NetEndpoint *sep, 
+	vptr tepOrPeer, 
+	const c8 *buf, 
+	u32 len)
+{
+	switch (type)
+	{
+	case NetIoMux::EIT_CONNECT:
+		ConnectCb(ec, sep);
+		break;
+	case NetIoMux::EIT_RECV:
+		RecvCb(ec, sep, buf, len);
+		break;
+	case NetIoMux::EIT_SEND:
+		SendCb(ec, sep, buf, len);
+		break;
+	default:
+		xpfAssert(("Unexpected NetIoMux::EIoType.", false));
+		break;
+	}
+}
+
+void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 {
 	Client *c = (Client*)ep->getUserData();
-	if (ec == (u32)NetEndpoint::EE_SUCCESS)
+	if (ec == NetEndpoint::EE_SUCCESS)
 	{
 		if (bytes == 0)
 		{
-			printf("Async client: end of data.\n");
+			printf("[Client] end of data.\n");
 			ep->close();
 			c->Count = 9999;
 			return;
@@ -146,7 +178,7 @@ void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 		c->Count++;
 		if (c->Count >= 1000)
 		{
-			printf("Async client: Client job completed.\n");
+			printf("[Client] Client job completed.\n");
 			ep->close();
 		}
 		else
@@ -156,7 +188,7 @@ void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 	}
 	else
 	{
-		printf("Async client: Failed on recving.\n");
+		printf("[Client] Failed on recving.\n");
 		ep->close();
 		c->Count = 9999;
 	}
@@ -165,21 +197,21 @@ void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 void TestAsyncClient::SendCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 {
 	Client *c = (Client*)ep->getUserData();
-	if (ec == (u32)NetEndpoint::EE_SUCCESS)
+	if (ec == NetEndpoint::EE_SUCCESS)
 	{
 		if (bytes == 0)
 		{
-			printf("Async client: truncated sending.\n");
+			printf("[Client] truncated sending.\n");
 			ep->close();
 			c->Count = 9999;
 			return;
 		}
 
-		mMux->asyncRecv(ep, c->RData, 2, XCALLBACK(TestAsyncClient::RecvCb));
+		mMux->asyncRecv(ep, c->RData, 2, this);
 	}
 	else
 	{
-		printf("Async client: Failed on sending.\n");
+		printf("[Client] Failed on sending.\n");
 		ep->close();
 		c->Count = 9999;
 	}
@@ -187,13 +219,13 @@ void TestAsyncClient::SendCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 
 void TestAsyncClient::ConnectCb(u32 ec, NetEndpoint* ep)
 {
-	if (ec == (u32) NetEndpoint::EE_SUCCESS)
+	if (ec == NetEndpoint::EE_SUCCESS)
 	{
 		sendTestData(ep);
 	}
 	else
 	{
-		printf("Async client: Failed on connecting.\n");
+		printf("[Client] Failed on connecting.\n");
 		ep->close();
 		Client *c = (Client*)ep->getUserData();
 		c->Count = 9999;
@@ -216,7 +248,8 @@ void TestAsyncClient::sendTestData(NetEndpoint* ep)
 	*(u16*)(c->WData) = (datalen + 1) * sizeof(u16);
 
 	const s32 tlen = (s32)((datalen + 2) * sizeof(u16));
+	xpfAssert(tlen <= 2048);
 	//s32 bytes = mEndpoint->send(mBuf, tlen, &ec);
 	c->Checksum = sum;
-	mMux->asyncSend(ep, c->WData, tlen, XCALLBACK(TestAsyncClient::SendCb));
+	mMux->asyncSend(ep, c->WData, tlen, this);
 }

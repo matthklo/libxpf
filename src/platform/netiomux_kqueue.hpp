@@ -60,37 +60,37 @@ namespace xpf
 
 		}
 
-		NetIoMux::RunningStaus runOnce(u32 timeoutMs)
+		NetIoMux::ERunningStaus runOnce(u32 timeoutMs)
 		{
-			return NetIoMux::RS_NORMAL;
+			return NetIoMux::ERS_NORMAL;
 		}
 
-		void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvCallback cb)
-		{
-
-		}
-
-		void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMux::RecvFromCallback cb)
+		void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
 
 		}
 
-		void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMux::SendCallback cb)
+		void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
 
 		}
 
-		void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMux::SendToCallback cb)
+		void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
 
 		}
 
-		void asyncAccept(NetEndpoint *ep, NetIoMux::AcceptCallback cb)
+		void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
 
 		}
 
-		void asyncConnect(NetEndpoint *ep, c8 *host, u32 port, NetIoMux::ConnectCallback cb)
+		void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb)
+		{
+
+		}
+
+		void asyncConnect(NetEndpoint *ep, c8 *host, u32 port, NetIoMuxCallback *cb)
 		{
 
 		}

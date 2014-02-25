@@ -47,6 +47,7 @@ WorkerThread::~WorkerThread()
 
 u32 WorkerThread::run(u64 udata)
 {
+	printf("WorkerThread ID = %u\n", Thread::getID());
 	mMux->run();
 	return 0;
 }
@@ -77,6 +78,7 @@ TestAsyncServer::~TestAsyncServer()
 	{
 		NetEndpoint *ep = *it;
 		Buffer *b = (Buffer*)ep->getUserData();
+		mMux->depart(ep);
 		delete ep;
 		delete b;
 	}
@@ -89,8 +91,9 @@ TestAsyncServer::~TestAsyncServer()
 void TestAsyncServer::start()
 {
 	if (mListeningEp)
-		mMux->asyncAccept(mListeningEp, XCALLBACK(TestAsyncServer::AcceptCb));
+		mMux->asyncAccept(mListeningEp, this);
 
+	printf("[Serv] Starting worker threads ...\n");
 	for (u32 i = 0; i < mThreads.size(); ++i)
 		mThreads[i]->start();
 }
@@ -101,7 +104,7 @@ void TestAsyncServer::stop()
 		return;
 
 	mMux->disable();
-	printf("Joining async server worker threads ...\n");
+	printf("[Serv] Joining async server worker threads ...\n");
 	while (!mThreads.empty())
 	{
 		for (u32 i = 0; i < mThreads.size(); ++i)
@@ -115,15 +118,40 @@ void TestAsyncServer::stop()
 			}
 		}
 	}
-	printf("All worker threads of async server have been joined.\n");
+	printf("[Serv] All worker threads of async server have been joined.\n");
 }
 
-void TestAsyncServer::AcceptCb(u32 ec, NetEndpoint* listeningEp, NetEndpoint* acceptedEp)
+void TestAsyncServer::onIoCompleted(
+	NetIoMux::EIoType type, 
+	NetEndpoint::EError ec, 
+	NetEndpoint *sep, 
+	vptr tepOrPeer, 
+	const c8 *buf, 
+	u32 len)
+{
+	switch (type)
+	{
+	case NetIoMux::EIT_ACCEPT:
+		AcceptCb(ec, sep, (NetEndpoint*)tepOrPeer);
+		break;
+	case NetIoMux::EIT_RECV:
+		RecvCb(ec, sep, buf, len);
+		break;
+	case NetIoMux::EIT_SEND:
+		SendCb(ec, sep, buf, len);
+		break;
+	default:
+		xpfAssert(("Unexpected NetIoMux::EIoType.", false));
+		break;
+	}
+}
+
+void TestAsyncServer::AcceptCb(NetEndpoint::EError ec, NetEndpoint* listeningEp, NetEndpoint* acceptedEp)
 {
 	xpfAssert(listeningEp == mListeningEp);
-	if (ec != (u32) NetEndpoint::EE_SUCCESS)
+	if (ec != NetEndpoint::EE_SUCCESS)
 	{
-		printf("Disable NetIoMux - accept failed. \n");
+		printf("[Serv] Disable NetIoMux - accept failed. \n");
 		mMux->disable();
 	}
 	else
@@ -132,18 +160,21 @@ void TestAsyncServer::AcceptCb(u32 ec, NetEndpoint* listeningEp, NetEndpoint* ac
 		b->Used = 0;
 		acceptedEp->setUserData((vptr)b);
 
-		printf("A new connection accepted.\n");
-		mMux->asyncRecv(acceptedEp, b->RData, 2048, XCALLBACK(TestAsyncServer::RecvCb));
-
-		mMux->asyncAccept(listeningEp, XCALLBACK(TestAsyncServer::AcceptCb));
+		printf("[Serv] A new connection accepted.\n");
+		mMux->asyncRecv(acceptedEp, b->RData, 2048, this);
+		mMux->asyncAccept(listeningEp, this);
 	}
 }
 
-void TestAsyncServer::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
+void TestAsyncServer::RecvCb(NetEndpoint::EError ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 {
-	if ((ec != (u32)NetEndpoint::EE_SUCCESS) || (bytes == 0))
+	if (ec != NetEndpoint::EE_SUCCESS)
 	{
-		printf("Recv error.");
+		printf("[Serv] Recv error.\n");
+	}
+	else if (bytes == 0)
+	{
+		printf("[Serv] Recv - End of data.\n");
 	}
 	else
 	{
@@ -159,7 +190,7 @@ void TestAsyncServer::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 
 			if (idx + packetlen > tbytes)
 			{
-				printf("Truncated packet data.\n");
+				printf("[Serv] Truncated packet data.\n");
 				b->Used = tbytes - idx;
 				if (b->Used > 0)
 					memmove(b->RData, &b->RData[idx], b->Used);
@@ -177,7 +208,7 @@ void TestAsyncServer::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 			}
 			xpfAssert(verified);
 			*(u16*)b->WData = sum;
-			mMux->asyncSend(ep, b->WData, sizeof(u16), XCALLBACK(TestAsyncServer::SendCb));
+			mMux->asyncSend(ep, b->WData, sizeof(u16), this);
 
 			idx += packetlen;
 			if (idx >= tbytes)
@@ -187,11 +218,11 @@ void TestAsyncServer::RecvCb(u32 ec, NetEndpoint* ep, c8* buf, u32 bytes)
 			}
 		} // end of while (true)
 
-		mMux->asyncRecv(ep, &b->RData[b->Used], (u32)(2048 - b->Used), XCALLBACK(TestAsyncServer::RecvCb));
+		mMux->asyncRecv(ep, &b->RData[b->Used], (u32)(2048 - b->Used), this);
 	}
 }
 
-void TestAsyncServer::SendCb(xpf::u32 ec, xpf::NetEndpoint* ep, const xpf::c8* buf, xpf::u32 bytes)
+void TestAsyncServer::SendCb(NetEndpoint::EError ec, NetEndpoint* ep, const  c8* buf, u32 bytes)
 {
-	xpfAssert(ec == (u32) NetEndpoint::EE_SUCCESS);
+	xpfAssert(ec == NetEndpoint::EE_SUCCESS);
 }
