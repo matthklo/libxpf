@@ -47,7 +47,7 @@ WorkerThread::~WorkerThread()
 
 u32 WorkerThread::run(u64 udata)
 {
-	printf("WorkerThread ID = %u\n", Thread::getID());
+	printf("WorkerThread ID = %llu\n", Thread::getID());
 	mMux->run();
 	return 0;
 }
@@ -122,11 +122,11 @@ void TestAsyncServer::stop()
 }
 
 void TestAsyncServer::onIoCompleted(
-	NetIoMux::EIoType type, 
-	NetEndpoint::EError ec, 
-	NetEndpoint *sep, 
-	vptr tepOrPeer, 
-	const c8 *buf, 
+	NetIoMux::EIoType type,
+	NetEndpoint::EError ec,
+	NetEndpoint *sep,
+	vptr tepOrPeer,
+	const c8 *buf,
 	u32 len)
 {
 	switch (type)

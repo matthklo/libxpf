@@ -19,7 +19,7 @@
  *
  * 3. This notice may not be removed or altered from any source
  *    distribution.
- ********************************************************************************/ 
+ ********************************************************************************/
 
 #include <xpf/netendpoint.h>
 #include <xpf/string.h>
@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netdb.h>
+#include <unistd.h>
 #endif
 
 #ifndef INVALID_SOCKET
@@ -54,7 +55,7 @@ public:
 
 		if (!platformInit())
 			return;
-		
+
 		Status = NetEndpoint::ESTAT_INIT;
 
 		// Decide detail socket parameters.
@@ -106,7 +107,7 @@ public:
 		Status = status;
 		Socket = socket;
 
-		int addrlen = XPF_NETENDPOINT_MAXADDRLEN;
+		socklen_t addrlen = XPF_NETENDPOINT_MAXADDRLEN;
 		int ec = ::getsockname(socket, (struct sockaddr*)&SockAddr, &addrlen);
 		xpfAssert( ("Valid socket provisioning.", (ec == 0) && (addrlen < XPF_NETENDPOINT_MAXADDRLEN)) );
 
@@ -114,11 +115,11 @@ public:
 		{
 			c8 servbuf[128];
 			ec = ::getnameinfo((struct sockaddr*)&SockAddr, addrlen,
-					Address, XPF_NETENDPOINT_MAXADDRLEN, servbuf, 128, 
+					Address, XPF_NETENDPOINT_MAXADDRLEN, servbuf, 128,
 					NI_NUMERICHOST | NI_NUMERICSERV);
 			if (ec == 0)
 			{
-				Port = lexical_cast<u32>(servbuf);
+				Port = lexical_cast<u32, c8>(&servbuf[0]);
 				return;
 			}
 		}
@@ -150,12 +151,12 @@ public:
 		NetEndpoint::Peer peer;
 		if (!NetEndpoint::resolvePeer(Protocol, peer, addr, 0, port))
 		{
-			if (errorcode) 
+			if (errorcode)
 				*errorcode = (u32)NetEndpoint::EE_RESOLVE;
 			return false;
 		}
 
-		xpfAssert( ("Expecting valid results from getaddrinfo().", 
+		xpfAssert( ("Expecting valid results from getaddrinfo().",
 			(peer.Length > 0) && (peer.Length <= XPF_NETENDPOINT_MAXADDRLEN)));
 
 		do
@@ -227,7 +228,7 @@ public:
 			return false;
 		}
 
-		xpfAssert( ("Expecting valid results from getaddrinfo().", 
+		xpfAssert( ("Expecting valid results from getaddrinfo().",
 			(results != 0) && (results->ai_addrlen > 0) && (results->ai_addrlen <= XPF_NETENDPOINT_MAXADDRLEN)) );
 
 		do
@@ -340,7 +341,7 @@ public:
 		}
 
 		peer->Length = XPF_NETENDPOINT_MAXADDRLEN;
-		s32 cnt = ::recvfrom(Socket, buf, len, 0, (struct sockaddr*)&peer->Data[0], &peer->Length);
+		s32 cnt = ::recvfrom(Socket, buf, len, 0, (struct sockaddr*)&peer->Data[0], (socklen_t*)&peer->Length);
 		if (cnt < 0)
 		{
 			if (errorcode)
@@ -413,20 +414,20 @@ public:
 		case NetEndpoint::ESD_READ:
 			shutdownFlag = SD_RECEIVE;
 			break;
-		case SD_SEND:
+		case NetEndpoint::ESD_WRITE:
 			shutdownFlag = SD_SEND;
 			break;
-		case SD_BOTH:
+		case NetEndpoint::ESD_BOTH:
 			shutdownFlag = SD_BOTH;
 			break;
 #else
 		case NetEndpoint::ESD_READ:
 			shutdownFlag = SHUT_RD;
 			break;
-		case SD_SEND:
+		case NetEndpoint::ESD_WRITE:
 			shutdownFlag = SHUT_WR;
 			break;
-		case SD_BOTH:
+		case NetEndpoint::ESD_BOTH:
 			shutdownFlag = SHUT_RDWR;
 			break;
 #endif

@@ -54,7 +54,7 @@ int test_sync()
 		clients.push_back(syncClient);
 	}
 
-	printf("Starting %u sync clients ...\n", clients.size());
+	printf("Starting %lu sync clients ...\n", clients.size());
 	for (xpf::u32 i = 0; i < clients.size(); ++i)
 	{
 		clients[i]->start();

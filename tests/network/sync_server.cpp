@@ -58,7 +58,7 @@ TestSyncServer::~TestSyncServer()
 {
 	if (mAccepting)
 	{
-		printf("Free up all connected conns (%u)...\n", _g_server_conns.size());
+		printf("Free up all connected conns (%lu)...\n", _g_server_conns.size());
 		for (std::set<TestSyncServer*>::iterator it = _g_server_conns.begin();
 			it != _g_server_conns.end(); ++it)
 		{

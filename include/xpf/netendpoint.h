@@ -19,7 +19,7 @@
  *
  * 3. This notice may not be removed or altered from any source
  *    distribution.
- ********************************************************************************/ 
+ ********************************************************************************/
 
 #ifndef _XPF_NETENDPOINT_HEADER_
 #define _XPF_NETENDPOINT_HEADER_
