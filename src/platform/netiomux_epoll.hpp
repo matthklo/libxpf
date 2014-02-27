@@ -19,7 +19,7 @@
  *
  * 3. This notice may not be removed or altered from any source
  *    distribution.
- ********************************************************************************/ 
+ ********************************************************************************/
 
 #include <xpf/netiomux.h>
 
@@ -29,13 +29,18 @@
 #define _XPF_NETIOMUX_IMPL_INCLUDED_
 #endif
 
+#include "netiomux_readylist.hpp"
+#include <sys/epoll.h>
+#include <unistd.h>
+#include <fcntl.h>
+
 namespace xpf
 {
 
-	struct EpollAsyncContext
-	{
+	//struct EpollAsyncContext
+	//{
 
-	};
+	//};
 
 	class NetIoMuxImpl
 	{
@@ -97,23 +102,19 @@ namespace xpf
 
 		bool join(NetEndpoint *ep)
 		{
-			// TODO: set O_NONBLOCK
-			if (ep->getAsyncContext() != 0)
-				return false;
-
-			ep->setAsyncContext((vptr) new EpollAsyncContext);
+            s32 sock = ep->getSocket();
+            int flags = fcntl(sock, F_GETFL);
+            xpfAssert(flags != 0xffffffff);
+            fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 			return true;
 		}
 
 		bool depart(NetEndpoint *ep)
 		{
-			// TODO: unset O_NONBLOCK
-			EpollAsyncContext *ctx = (EpollAsyncContext*)((ep) ? ep->getAsyncContext() : 0);
-			if (ctx)
-			{
-				delete ctx;
-				return true;
-			}
+            s32 sock = ep->getSocket();
+            int flags = fcntl(sock, F_GETFL);
+            xpfAssert(flags != 0xffffffff);
+            fcntl(sock, F_SETFL, flags & (0 ^ O_NONBLOCK));
 			return false;
 		}
 
@@ -124,7 +125,7 @@ namespace xpf
 		}
 
 	private:
-
+        NetIoMuxReadyList mReadyList;
 	}; // end of class NetIoMuxImpl (epoll)
 
 } // end of namespace xpf
