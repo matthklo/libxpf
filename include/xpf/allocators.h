@@ -182,6 +182,7 @@ public:
 	typedef const T& const_reference;
 	typedef T value_type;
 	typedef u32 size_type;
+	typedef ptrdiff_t difference_type;
 
 	template < typename U >
 	struct rebind { typedef Allocator<U, ALLOCATOR, SLOT> other; };
