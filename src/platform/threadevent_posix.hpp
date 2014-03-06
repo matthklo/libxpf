@@ -92,23 +92,21 @@ namespace xpf { namespace details {
 			}
 			else
 			{
-				u32 sec = (timeoutMs/1000);
-				u32 msec = (timeoutMs - (sec*1000));
-				struct timeval tv;
-				struct timespec ts;
-				u32 carriedSec = 0;
-
 				pthread_mutex_lock(&m_lock);
-				gettimeofday(&tv, NULL);
 
-				ts.tv_nsec = (tv.tv_usec + msec) * 1000;
-				while (ts.tv_nsec >= 1000000000)
-				{
-					carriedSec++;
-					ts.tv_nsec -= 1000000000;
-				}
+				struct timeval  tvnow, tvadv, tvres; // secs, microsecs (10^-6)
+				struct timespec ts; // secs, nanosecs (10^-9)
 
-				ts.tv_sec = tv.tv_sec + sec + carriedSec;
+				gettimeofday(&tvnow, NULL);
+
+				tvadv.tv_sec = (timeoutMs / 1000);
+				tvadv.tv_usec = (timeoutMs % 1000) * 1000;
+
+				timeradd(&tvnow, &tvadv, &tvres);
+
+				// convert timeval to timespec.
+				ts.tv_sec = tvres.tv_sec;
+				ts.tv_nsec = tvres.tv_usec * 1000;
 
 				if ( 0 == pthread_cond_timedwait(&m_ready, &m_lock, &ts) )
 					ret = true;
