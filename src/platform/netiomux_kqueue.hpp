@@ -90,7 +90,7 @@ namespace xpf
 
 		}
 
-		void asyncConnect(NetEndpoint *ep, c8 *host, u32 port, NetIoMuxCallback *cb)
+		void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb)
 		{
 
 		}
