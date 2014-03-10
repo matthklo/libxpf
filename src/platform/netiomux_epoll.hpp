@@ -37,9 +37,12 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define MAX_EPOLL_EVENTS_AT_ONCE (128)
+
 namespace xpf
 {
 
+	// data record per operation
 	struct EpollOverlapped
 	{
 		NetIoMux::EIoType iotype;
@@ -49,6 +52,15 @@ namespace xpf
 		u32	length;
 		NetEndpoint::Peer *peer;
 		NetIoMuxCallback *cb;
+	};
+	
+	// data record per socket
+	struct EpollAsyncContext
+	{
+		std::deque<EpollOverlapped*> rdqueue; // queued read operations
+		std::deque<EpollOverlapped*> wrqueue; // queued write operations
+		bool                         ready;
+		ThreadLock                   lock;
 	};
 
 	class NetIoMuxImpl
@@ -81,15 +93,50 @@ namespace xpf
 
 		void run()
 		{
-            while (mEnable)
-            {
-                if (NetIoMux::ERS_DISABLED == runOnce(10))
-                    break;
-            }
+			while (mEnable)
+			{
+				if (NetIoMux::ERS_DISABLED == runOnce(10))
+					break;
+			}
 		}
 
 		NetIoMux::ERunningStaus runOnce(u32 timeoutMs)
 		{
+			bool consumeSome = false;
+			
+			// consume ready list
+			u32 remaining = 0;
+			NetEndpoint *ep = (NetEndpoint*) mReadyList.pop_front(remaining);
+			do
+			{
+				if (!ep) break;
+				EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+				if (!ctx) break;
+				
+				// perform read ops until E_WOULDBLOCK
+				while(true)
+				{
+				}
+				
+				// perform write ops until E_WOULDBLOCK
+				while (true)
+				{
+				}
+				
+			} while (0);
+			
+			// epoll
+			epoll_event evts[MAX_EPOLL_EVENTS_AT_ONCE];
+			int nevts = epoll_wait(mEpollfd, evts, MAX_EPOLL_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
+			xpfAssert(("Failed on calling epoll_wait", nevts != -1));
+			if (!consumeSome && (0 == nevts))
+			{
+				return NetIoMux::ERS_TIMEOUT;
+			}
+			else if (nevts > 0)
+			{
+			}
+			
 			return NetIoMux::ERS_NORMAL;
 		}
 
@@ -104,7 +151,17 @@ namespace xpf
 				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
 				return;
 			}
-
+			
+			EpollOverlapped *o = new EpollOverlapped;
+			o->iotype = iotype;
+			o->sep = ep;
+			o->tep = 0;
+			o->buffer = buf;
+			o->length = buflen;
+			o->cb = cb;
+			o->peer = 0;
+			appendAsyncReadOp(ep, o);
+/*
 			ssize_t bytes = recv(ep->getSocket(), buf, (size_t)buflen, MSG_DONTWAIT);
 			if ((bytes != -1) || (errno == EAGAIN || errno == EWOULDBLOCK))
 			{
@@ -139,7 +196,7 @@ namespace xpf
 			{
 				// i/o error
 				cb->onIoCompleted(iotype, NetEndpoint::EE_RECV, ep, 0, buf, 0);
-			}
+			}*/
 		}
 
 		void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
@@ -155,7 +212,17 @@ namespace xpf
 			}
 
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
-
+			
+			EpollOverlapped *o = new EpollOverlapped;
+			o->iotype = iotype;
+			o->sep = ep;
+			o->tep = 0;
+			o->buffer = buf;
+			o->length = buflen;
+			o->cb = cb;
+			o->peer = peer;
+			appendAsyncReadOp(ep, o);
+/*
 			ssize_t bytes = recvfrom(ep->getSocket(), buf, (size_t)buflen, MSG_DONTWAIT, (struct sockaddr*)peer->Data, (socklen_t*)&peer->Length);
 			if ((bytes != -1) || (errno == EAGAIN || errno == EWOULDBLOCK))
 			{
@@ -192,7 +259,7 @@ namespace xpf
 				// i/o error
 				delete peer;
 				cb->onIoCompleted(iotype, NetEndpoint::EE_RECV, ep, 0, buf, 0);
-			}
+			}*/
 		}
 
 		void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
@@ -206,7 +273,17 @@ namespace xpf
 				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
 				return;
 			}
-
+			
+			EpollOverlapped *o = new EpollOverlapped;
+			o->iotype = iotype;
+			o->sep = ep;
+			o->tep = 0;
+			o->buffer = (c8*)buf;
+			o->length = buflen;
+			o->cb = cb;
+			o->peer = 0;
+			appendAsyncWriteOp(ep, o);
+/*
 			ssize_t bytes = send(ep->getSocket(), buf, (size_t)buflen, MSG_DONTWAIT);
 			if ((bytes != -1) || (errno == EAGAIN || errno == EWOULDBLOCK))
 			{
@@ -241,7 +318,7 @@ namespace xpf
 			{
 				// i/o error
 				cb->onIoCompleted(iotype, NetEndpoint::EE_SEND, ep, 0, buf, 0);
-			}
+			}*/
 		}
 
 		void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
@@ -257,7 +334,17 @@ namespace xpf
 			}
 
 			NetEndpoint::Peer *p = new NetEndpoint::Peer(*peer); // clone
-
+			
+			EpollOverlapped *o = new EpollOverlapped;
+			o->iotype = iotype;
+			o->sep = ep;
+			o->tep = 0;
+			o->buffer = (c8*)buf;
+			o->length = buflen;
+			o->cb = cb;
+			o->peer = p;
+			appendAsyncWriteOp(ep, o);
+/*
 			ssize_t bytes = sendto(ep->getSocket(), buf, (size_t)buflen, MSG_DONTWAIT,
 					(const struct sockaddr*)p->Data, (socklen_t)p->Length);
 			if ((bytes != -1) || (errno == EAGAIN || errno == EWOULDBLOCK))
@@ -295,7 +382,7 @@ namespace xpf
 				// i/o error
 				delete p;
 				cb->onIoCompleted(iotype, NetEndpoint::EE_SEND, ep, (vptr)peer, buf, 0);
-			}
+			}*/
 		}
 
 		void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb)
@@ -309,7 +396,17 @@ namespace xpf
 				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, 0, 0);
 				return;
 			}
-
+			
+			EpollOverlapped *o = new EpollOverlapped;
+			o->iotype = iotype;
+			o->sep = ep;
+			o->tep = 0;
+			o->buffer = 0;
+			o->length = 0;
+			o->cb = cb;
+			o->peer = 0;
+			appendAsyncReadOp(ep, o);
+			/*
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
 			int peersock = accept(ep->getSocket(), (struct sockaddr*)peer->Data, (socklen_t*)&peer->Length);
 			if ((peersock != -1) || (errno == EAGAIN || errno == EWOULDBLOCK))
@@ -348,7 +445,7 @@ namespace xpf
 				// i/o error
 				delete peer;
 				cb->onIoCompleted(iotype, NetEndpoint::EE_ACCEPT, ep, 0, 0, 0);
-			}
+			}*/
 		}
 
 		void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb)
@@ -363,6 +460,7 @@ namespace xpf
 				return;
 			}
 
+			// Note: the resolving is blockable.
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
 			if (!NetEndpoint::resolvePeer(ep->getProtocol(), *peer, host, 0, port))
 			{
@@ -370,6 +468,16 @@ namespace xpf
 				return;
 			}
 
+			EpollOverlapped *o = new EpollOverlapped;
+			o->iotype = iotype;
+			o->sep = ep;
+			o->tep = 0;
+			o->buffer = 0;
+			o->length = 0;
+			o->cb = cb;
+			o->peer = peer;
+			appendAsyncWriteOp(ep, o);
+			/*
 			int ec = connect(ep->getSocket(), (const struct sockaddr*)peer->Data, (socklen_t)peer->Length);
 			if ((ec == 0) || (errno == EINPROGRESS))
 			{
@@ -406,23 +514,34 @@ namespace xpf
 				// i/o error
 				delete peer;
 				cb->onIoCompleted(iotype, NetEndpoint::EE_CONNECT, ep, 0, 0, 0);
-			}
+			}*/
 		}
 
 		bool join(NetEndpoint *ep)
 		{
-            s32 sock = ep->getSocket();
-            int flags = fcntl(sock, F_GETFL);
-            xpfAssert(flags != 0xffffffff);
-            fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-
+			s32 sock = ep->getSocket();
+		
 			// add given endpoint to epoll group without reacting to any event.
             struct epoll_event ev;
             ev.events = 0;
             ev.data.ptr = 0;
             int ec = epoll_ctl(mEpollfd, EPOLL_CTL_ADD, sock, &ev);
             xpfAssert(ec == 0);
+			if (ec != 0)
+			{
+				return false;
+			}
 
+			// request the socket to be non-blocking
+            int flags = fcntl(sock, F_GETFL);
+            xpfAssert(flags != 0xffffffff);
+            fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+			// bundle with an async context
+			EpollAsyncContext *ctx = new EpollAsyncContext;
+			ctx->ready = false;
+			ep->setAsyncContext((vptr)ctx);
+			
 			return (ec == 0);
 		}
 
@@ -434,10 +553,35 @@ namespace xpf
 			struct epoll_event dummy;
 			int ec = epoll_ctl(mEpollfd, EPOLL_CTL_DEL, sock, &dummy); // dummy is not used but cannot be NULL
 			xpfAssert(ec == 0);
-
+			if (ec != 0)
+			{
+				return false;
+			}
+			
+			// delete the async context
+			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (!ctx)
+			{
+				return false;
+			}
+			else
+			{
+				ctx->lock.lock();
+				if (ctx->ready)
+				{
+					mReadyList.erase((void*)ep); // Note: Acquire mReadyList's lock while holding ctx's lock.
+				}
+				delete ctx;
+				ep->setAsyncContext(0);
+				// since the whole context object has been deleted, there's no bother to call unlock.
+			}
+			
+			// reset the socket to be blocking
             int flags = fcntl(sock, F_GETFL);
             xpfAssert(flags != 0xffffffff);
             fcntl(sock, F_SETFL, flags & (0 ^ O_NONBLOCK));
+			
 			return (ec == 0);
 		}
 
@@ -448,6 +592,40 @@ namespace xpf
 		}
 
 	private:
+		void appendAsyncReadOp(NetEndpoint *ep, EpollOverlapped *o)
+		{
+			EpollAsyncContext *ctx = (ep == 0)? 0 : (EpollAsyncContext*)ep->getAsyncContext();
+			if (ctx == 0 || o == 0)
+			{
+				xpfAssert(false);
+				return;
+			}
+			ScopedThreadLock ml(ctx->lock);
+			ctx->rdqueue.push_back(o);
+			if (!ctx->ready)
+			{
+				ctx->ready = true;
+				mReadyList.push_back((void*)ep);
+			}
+		}
+		
+		void appendAsyncWriteOp(NetEndpoint *ep, EpollOverlapped *o)
+		{
+			EpollAsyncContext *ctx = (ep == 0)? 0 : (EpollAsyncContext*)ep->getAsyncContext();
+			if (ctx == 0 || o == 0)
+			{
+				xpfAssert(false);
+				return;
+			}
+			ScopedThreadLock ml(ctx->lock);
+			ctx->wrqueue.push_back(o);
+			if (!ctx->ready)
+			{
+				ctx->ready = true;
+				mReadyList.push_back((void*)ep);
+			}
+		}
+		
 		NetIoMuxSyncFifo mReadyList;
 		bool mEnable;
 		int mEpollfd;

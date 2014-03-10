@@ -42,6 +42,11 @@ public:
     void* pop_front(u32 & count)
     {
         ScopedThreadLock ml(mLock);
+		if (mList.empty())
+		{
+			count = 0;
+			return 0;
+		}
         void* ret = mList.front();
         mList.pop_front();
         count = mList.size();
@@ -56,11 +61,30 @@ public:
             mList.push_back(data);
         }
     }
+	
+	// Note: O(N)
+	bool erase(void *data)
+	{
+		ScopedThreadLock ml(mLock);
+		if (data == 0 || mList.empty())
+			return false;
+		for (std::deque<void*>::iterator it = mList.begin();
+				it != mList.end(); ++it)
+		{
+			void *p = *it;
+			if (p == data)
+			{
+				mList.erase(it);
+				return true;
+			}
+		}
+		return false;
+	}
 
 private:
     ThreadLock mLock;
     std::deque<void*> mList;
 };
 
-}
+} // end of namespace xpf
 
