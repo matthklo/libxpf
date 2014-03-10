@@ -25,6 +25,8 @@
 #include <xpf/string.h>
 #include <xpf/lexicalcast.h>
 
+#include <cstring>
+
 #if defined(XPF_PLATFORM_WINDOWS)
 #include <WS2tcpip.h>
 #include <WinSock2.h>

@@ -28,14 +28,14 @@
 namespace xpf
 {
 
-class NetIoMuxReadyList
+class NetIoMuxSyncFifo
 {
 public:
-    NetIoMuxReadyList()
+    NetIoMuxSyncFifo()
     {
     }
 
-    ~NetIoMuxReadyList()
+    ~NetIoMuxSyncFifo()
     {
     }
 

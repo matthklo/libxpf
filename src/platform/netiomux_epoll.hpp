@@ -29,7 +29,7 @@
 #define _XPF_NETIOMUX_IMPL_INCLUDED_
 #endif
 
-#include "netiomux_readylist.hpp"
+#include "netiomux_syncfifo.hpp"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
@@ -448,7 +448,7 @@ namespace xpf
 		}
 
 	private:
-		NetIoMuxReadyList mReadyList;
+		NetIoMuxSyncFifo mReadyList;
 		bool mEnable;
 		int mEpollfd;
 	}; // end of class NetIoMuxImpl (epoll)

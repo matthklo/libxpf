@@ -31,6 +31,7 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 
 using namespace xpf;
 

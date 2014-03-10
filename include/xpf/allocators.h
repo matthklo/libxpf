@@ -26,6 +26,7 @@
 
 #include "platform.h"
 #include <memory>
+#include <cstddef>
 
 namespace xpf {
 
