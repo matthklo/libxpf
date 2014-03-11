@@ -38,6 +38,7 @@
 #include <errno.h>
 
 #define MAX_EPOLL_EVENTS_AT_ONCE (128)
+#define MAX_EPOLL_READY_LIST_LEN (10240)
 
 namespace xpf
 {
@@ -45,6 +46,9 @@ namespace xpf
 	// data record per operation
 	struct EpollOverlapped
 	{
+		EpollOverlapped(NetEndpoint *ep, NetIoMux::EIoType iocode) 
+			: iotype(iocode), sep(ep), tep(0), buffer(0), length(0), peer(0), cb(0), errorcode(0) {}
+
 		NetIoMux::EIoType iotype;
 		NetEndpoint *sep;
 		NetEndpoint *tep;
@@ -52,15 +56,17 @@ namespace xpf
 		u32	length;
 		NetEndpoint::Peer *peer;
 		NetIoMuxCallback *cb;
+		int errorcode;
 	};
 	
 	// data record per socket
 	struct EpollAsyncContext
 	{
-		std::deque<EpollOverlapped*> rdqueue; // queued read operations
-		std::deque<EpollOverlapped*> wrqueue; // queued write operations
-		bool                         ready;
-		ThreadLock                   lock;
+		std::deque<EpollOverlapped*>  rdqueue; // queued read operations
+		std::deque<EpollOverlapped*>  wrqueue; // queued write operations
+		bool                          ready;
+		ThreadLock                    lock;
+		NetEndpoint                  *ep;
 	};
 
 	class NetIoMuxImpl
@@ -102,10 +108,67 @@ namespace xpf
 
 		NetIoMux::ERunningStaus runOnce(u32 timeoutMs)
 		{
-			bool consumeSome = false;
-			
-			// consume ready list
+			// Consume completion list:
 			u32 remaining = 0;
+			EpollOverlapped *co = (EpollOverlapped*) mCompletionList.pop_front(remaining);
+			if (co)
+			{
+				switch (co->iotype)
+				{
+				case NetIoMux::EIT_RECV:
+					if (co->errorcode == 0)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_RECV, co->sep, 0, co->buffer, co->length);
+					else
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_RECV, co->sep, 0, co->buffer, 0);
+					break;
+				case NetIoMux::EIT_RECVFROM:
+					if (co->errorcode == 0)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_RECV, co->sep, (vptr)co->peer, co->buffer, co->length);
+					else
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_RECV, co->sep, 0, co->buffer, 0);
+					delete co->peer;
+					break;
+				case NetIoMux::EIT_SEND:
+					if (co->errorcode == 0)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SEND, co->sep, 0, co->buffer, co->length);
+					else
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SEND, co->sep, 0, co->buffer, 0);
+					break;
+				case NetIoMux::EIT_SENDTO:
+					if (co->errorcode == 0)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SEND, co->sep, (vptr)co->peer, co->buffer, co->length);
+					else
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SEND, co->sep, (vptr)co->peer, co->buffer, 0);
+					delete co->peer;
+					break;
+				case NetIoMux::EIT_ACCEPT:
+					if (co->errorcode == 0)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_ACCEPT, co->sep, (vptr)co->tep, 0, 0);
+					else
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_ACCEPT, co->sep, 0, 0, 0);
+					break;
+				case NetIoMux::EIT_CONNECT:
+					if (co->errorcode == 0)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_CONNECT, co->sep, (vptr)co->peer, 0, 0);
+					else
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_CONNECT, co->sep, (vptr)co->peer, 0, 0);
+					delete co->peer;
+					break;
+				case NetIoMux::EIT_INVALID:
+				default:
+					xpfAssert(("Unrecognized iotype. Maybe a corrupted EpollOverlapped.", false));
+					break;
+				}
+				delete co;
+			}
+			
+			
+			// Consume ready list:
+			// Pop the front socket out of list, and
+			// perform at most 1 read and 1 write operation.
+			// Re-arm the socket and push back to the tail 
+			// of list if there are more operations remaining.
+			bool consumeSome = false;
 			NetEndpoint *ep = (NetEndpoint*) mReadyList.pop_front(remaining);
 			do
 			{
@@ -113,28 +176,138 @@ namespace xpf
 				EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
 				if (!ctx) break;
 				
-				// perform read ops until E_WOULDBLOCK
-				while(true)
+				xpfAssert(("Expecting ready flag on for all ", ctx->ready));
+				
+				EpollOverlapped *ro = 0;
+				EpollOverlapped *wo = 0;
+				
 				{
+					ScopedThreadLock ml(ctx->lock);
+					ro = (!ctx->rdqueue.empty()) ? ctx->rdqueue.front() : 0;
+					wo = (!ctx->wrqueue.empty()) ? ctx->wrqueue.front() : 0;
 				}
 				
-				// perform write ops until E_WOULDBLOCK
-				while (true)
+				if (ro)
 				{
+					switch (ro->iotype)
+					{
+					case NetIoMux::EIT_RECV:
+						break;
+					case NetIoMux::EIT_RECVFROM:
+						break;
+					case NetIoMux::EIT_ACCEPT:
+						break;
+					default:
+						xpfAssert(("Invalid iotype queued in pending read-ops.", false));
+						break;
+					}
+				}
+				
+				if (wo)
+				{
+					switch (wo->iotype)
+					{
+					case NetIoMux::EIT_SEND:
+						break;
+					case NetIoMux::EIT_SENDTO:
+						break;
+					case NetIoMux::EIT_CONNECT:
+						break;
+					default:
+						xpfAssert(("Invalid iotype queued in pending write-ops.", false));
+						break;
+					}
+				}
+
+				bool rearm = false;
+				epoll_event evt;
+				evt.events = EPOLLET | EPOLLONESHOT;
+				evt.data.ptr = (void*) ep;
+				{
+					ScopedThreadLock ml(ctx->lock);
+					if (!ctx->rdqueue.empty()) { evt.events |= EPOLLIN;  rearm = true; }
+					if (!ctx->wrqueue.empty()) { evt.events |= EPOLLOUT; rearm = true; }
+				}
+				
+				if (rearm)
+				{
+					
 				}
 				
 			} while (0);
 			
-			// epoll
-			epoll_event evts[MAX_EPOLL_EVENTS_AT_ONCE];
-			int nevts = epoll_wait(mEpollfd, evts, MAX_EPOLL_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
-			xpfAssert(("Failed on calling epoll_wait", nevts != -1));
-			if (!consumeSome && (0 == nevts))
+			// epoll_wait for more ready events.
+			// Will skip if the length of list is too large.
+			if (remaining < MAX_EPOLL_READY_LIST_LEN)
 			{
-				return NetIoMux::ERS_TIMEOUT;
-			}
-			else if (nevts > 0)
-			{
+				epoll_event evts[MAX_EPOLL_EVENTS_AT_ONCE];
+				int nevts = epoll_wait(mEpollfd, evts, MAX_EPOLL_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
+				xpfAssert(("Failed on calling epoll_wait", nevts != -1));
+				if (0 == nevts)
+				{
+					return NetIoMux::ERS_TIMEOUT;
+				}
+				else if (nevts > 0)
+				{
+					for (int i=0; i<nevts; ++i)
+					{
+						uint32_t events = evts[i].events;
+						NetEndpoint *ep = (NetEndpoint*) evts[i].data.ptr;
+						EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+						
+						if ((events & (EPOLLERR | EPOLLHUP)))
+						{
+							// Flush all pending operations in ep.
+							// Notify upper layer via callbacks.
+							// Do not push this ep back to ready list.
+							std::deque<EpollOverlapped*> pending;
+							
+							// critical section.
+							{
+								ScopedThreadLock ml(ctx->lock);
+								ctx->ready = false;
+							
+							
+								for (std::deque<EpollOverlapped*>::iterator it = ctx->rdqueue.begin();
+										it != ctx->rdqueue.end(); ++it)
+								{
+									pending.push_back(*it);
+								}
+								for (std::deque<EpollOverlapped*>::iterator it = ctx->wrqueue.begin();
+										it != ctx->wrqueue.end(); ++it)
+								{
+									pending.push_back(*it);
+								}
+								
+								ctx->rdqueue.clear();
+								ctx->wrqueue.clear();
+							}
+							
+							for (std::deque<EpollOverlapped*>::iterator it = pending.begin();
+									it != pending.end(); ++it)
+							{
+								EpollOverlapped *o = (*it);
+								// TODO: platform dependent errorcode
+								o->errorcode = 1;
+								mCompletionList.push_back((void*)o);
+							}
+							
+							continue;
+						}
+
+						if (events & (EPOLLIN | EPOLLOUT))
+						{
+							ScopedThreadLock ml(ctx->lock);
+							ctx->ready = true;
+							mReadyList.push_back((void*)ep);
+						}
+
+					} // end of for (int i=0; i<nevts; ++i)
+				}
+				else
+				{
+					return NetIoMux::ERS_DISABLED;
+				}
 			}
 			
 			return NetIoMux::ERS_NORMAL;
@@ -152,14 +325,10 @@ namespace xpf
 				return;
 			}
 			
-			EpollOverlapped *o = new EpollOverlapped;
-			o->iotype = iotype;
-			o->sep = ep;
-			o->tep = 0;
+			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
 			o->buffer = buf;
 			o->length = buflen;
 			o->cb = cb;
-			o->peer = 0;
 			appendAsyncReadOp(ep, o);
 /*
 			ssize_t bytes = recv(ep->getSocket(), buf, (size_t)buflen, MSG_DONTWAIT);
@@ -213,10 +382,7 @@ namespace xpf
 
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
 			
-			EpollOverlapped *o = new EpollOverlapped;
-			o->iotype = iotype;
-			o->sep = ep;
-			o->tep = 0;
+			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
 			o->buffer = buf;
 			o->length = buflen;
 			o->cb = cb;
@@ -274,14 +440,10 @@ namespace xpf
 				return;
 			}
 			
-			EpollOverlapped *o = new EpollOverlapped;
-			o->iotype = iotype;
-			o->sep = ep;
-			o->tep = 0;
+			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
 			o->buffer = (c8*)buf;
 			o->length = buflen;
 			o->cb = cb;
-			o->peer = 0;
 			appendAsyncWriteOp(ep, o);
 /*
 			ssize_t bytes = send(ep->getSocket(), buf, (size_t)buflen, MSG_DONTWAIT);
@@ -335,10 +497,7 @@ namespace xpf
 
 			NetEndpoint::Peer *p = new NetEndpoint::Peer(*peer); // clone
 			
-			EpollOverlapped *o = new EpollOverlapped;
-			o->iotype = iotype;
-			o->sep = ep;
-			o->tep = 0;
+			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
 			o->buffer = (c8*)buf;
 			o->length = buflen;
 			o->cb = cb;
@@ -397,14 +556,8 @@ namespace xpf
 				return;
 			}
 			
-			EpollOverlapped *o = new EpollOverlapped;
-			o->iotype = iotype;
-			o->sep = ep;
-			o->tep = 0;
-			o->buffer = 0;
-			o->length = 0;
+			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
 			o->cb = cb;
-			o->peer = 0;
 			appendAsyncReadOp(ep, o);
 			/*
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
@@ -468,12 +621,7 @@ namespace xpf
 				return;
 			}
 
-			EpollOverlapped *o = new EpollOverlapped;
-			o->iotype = iotype;
-			o->sep = ep;
-			o->tep = 0;
-			o->buffer = 0;
-			o->length = 0;
+			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
 			o->cb = cb;
 			o->peer = peer;
 			appendAsyncWriteOp(ep, o);
@@ -540,6 +688,7 @@ namespace xpf
 			// bundle with an async context
 			EpollAsyncContext *ctx = new EpollAsyncContext;
 			ctx->ready = false;
+			ctx->ep = ep;
 			ep->setAsyncContext((vptr)ctx);
 			
 			return (ec == 0);
@@ -626,7 +775,8 @@ namespace xpf
 			}
 		}
 		
-		NetIoMuxSyncFifo mReadyList;
+		NetIoMuxSyncFifo mCompletionList; // fifo of EpollOverlapped.
+		NetIoMuxSyncFifo mReadyList;      // fifo of NetEndpoints.
 		bool mEnable;
 		int mEpollfd;
 	}; // end of class NetIoMuxImpl (epoll)
