@@ -20,7 +20,7 @@
  * 3. This notice may not be removed or altered from any source
  *    distribution.
  ********************************************************************************/
- 
+
 #include <xpf/thread.h>
 #include <xpf/tls.h>
 
@@ -40,6 +40,12 @@ using namespace xpf;
 
 ThreadLocalStorage<u64> _g_tls;
 
+struct MyHot
+{
+	ThreadLock lock;
+	int sum;
+} _g_hot;
+
 class MyThread : public Thread
 {
 public:
@@ -54,6 +60,14 @@ public:
 		}
 
 		u64 sec = userdata;
+
+		u64 cnt = sec * 1000;
+		while (cnt--)
+		{
+			ScopedThreadLock ml(_g_hot.lock);
+			_g_hot.sum += 1;
+		}
+
 		while (sec--)
 		{
 			printf("Thread [%llu]: Remaining %llu seconds. \n", tid, sec);
@@ -76,12 +90,17 @@ int main()
 
 	::srand((unsigned int)::time(NULL));
 
+	_g_hot.sum = 0;
+
 	std::vector<Thread*> ta;
 
+	u64 expectingCnt = 0;
 	for (int i=0; i<30; ++i)
 	{
 		ta.push_back(new MyThread);
-		ta.back()->setData((u64)(rand()%30 + 1));
+		u64 udata = (u64)(rand()%30+ 1);
+		ta.back()->setData(udata);
+		expectingCnt += (udata)*1000;
 	}
 
 	for (unsigned int i=0; i<ta.size(); ++i)
@@ -115,6 +134,8 @@ int main()
 		if (!joinedAny)
 		Thread::sleep(1000);
 	}
+
+	xpfAssert(("Expecting matched sum.", _g_hot.sum == expectingCnt));
 
 	return 0;
 }

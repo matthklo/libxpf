@@ -176,9 +176,8 @@ namespace xpf
 				EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
 				if (!ctx) break;
 
-				xpfAssert(("Expecting ready flag on for all ", ctx->ready));
-
 				ScopedThreadLock ml(ctx->lock);
+				xpfAssert(("Expecting ready flag on for all ", ctx->ready));
 				while (true) // process rqueue.
 				{
 					EpollOverlapped *o =
@@ -583,10 +582,16 @@ namespace xpf
 		{
 			s32 sock = ep->getSocket();
 
+			// bundle with an async context
+			EpollAsyncContext *ctx = new EpollAsyncContext;
+			ctx->ready = false;
+			ctx->ep = ep;
+			ep->setAsyncContext((vptr)ctx);
+
 			// add given endpoint to epoll group without reacting to any event.
             struct epoll_event ev;
             ev.events = 0;
-            ev.data.ptr = 0;
+            ev.data.ptr = (void*) ep;
             int ec = epoll_ctl(mEpollfd, EPOLL_CTL_ADD, sock, &ev);
             xpfAssert(ec == 0);
 			if (ec != 0)
@@ -598,12 +603,6 @@ namespace xpf
             int flags = fcntl(sock, F_GETFL);
             xpfAssert(flags != 0xffffffff);
             fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-
-			// bundle with an async context
-			EpollAsyncContext *ctx = new EpollAsyncContext;
-			ctx->ready = false;
-			ctx->ep = ep;
-			ep->setAsyncContext((vptr)ctx);
 
 			return (ec == 0);
 		}
