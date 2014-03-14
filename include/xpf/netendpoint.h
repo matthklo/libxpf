@@ -128,7 +128,7 @@ private:
 	NetEndpoint(const NetEndpoint& that) {}
 	NetEndpoint& operator = (const NetEndpoint& that) { return *this; }
 
-	inline void setStatus(EStatus status);
+	       void       setStatus(EStatus status);
 	inline vptr       getAsyncContext() const { return pAsyncContext; }
 	inline vptr       setAsyncContext(vptr newdata) { vptr olddata = pAsyncContext; pAsyncContext = newdata; return olddata; }
 
