@@ -33,6 +33,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define NUM_ENPOINTS (1)
+
 using namespace xpf;
 
 TestAsyncClient::TestAsyncClient(u32 threadNum)
@@ -44,7 +46,7 @@ TestAsyncClient::TestAsyncClient(u32 threadNum)
 		mThreads.push_back(new WorkerThread(mMux));
 	}
 
-	for (u32 i = 0; i < 16; ++i)
+	for (u32 i = 0; i < NUM_ENPOINTS; ++i)
 	{
 		Client *c = new Client;
 		c->Checksum = 0;
@@ -60,7 +62,7 @@ TestAsyncClient::~TestAsyncClient()
 {
 	stop();
 
-	for (u32 i = 0; i < 16; ++i)
+	for (u32 i = 0; i < NUM_ENPOINTS; ++i)
 	{
 		Client *c = (Client*)mClients[i]->getUserData();
 		delete mClients[i];
@@ -78,7 +80,7 @@ void TestAsyncClient::start()
 	for (u32 i = 0; i < mThreads.size(); ++i)
 		mThreads[i]->start();
 
-	for (u32 i = 0; i < 16; ++i)
+	for (u32 i = 0; i < NUM_ENPOINTS; ++i)
 	{
 		mMux->asyncConnect(mClients[i], "localhost", 50123, this);
 	}
@@ -94,7 +96,7 @@ void TestAsyncClient::stop()
 		u32 i = 0;
 		u32 errcnt = 0;
 		u32 donecnt = 0;
-		for (; i < 16; ++i)
+		for (; i < NUM_ENPOINTS; ++i)
 		{
 			Client *c = (Client*)mClients[i]->getUserData();
 			if (c->Count >= 9999)
@@ -102,10 +104,10 @@ void TestAsyncClient::stop()
 			else if (c->Count <= 1000)
 				donecnt += c->Count;
 		}
-		if (donecnt == 16 * 1000)
+		if (donecnt == NUM_ENPOINTS * 1000)
 		{
 			printf("[Client] All jobs done.\n");
-			for (u32 j=0; j<16; ++j)
+			for (u32 j=0; j<NUM_ENPOINTS; ++j)
 				printf("[Client] job count: [%u] %u.\n", j, ((Client*)mClients[j]->getUserData())->Count);
 			break;
 		}
@@ -183,6 +185,7 @@ void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 		}
 		else
 		{
+			printf("[Client] Recv - bytes=%u.\n", bytes);
 			sendTestData(ep);
 		}
 	}
@@ -207,6 +210,7 @@ void TestAsyncClient::SendCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 			return;
 		}
 
+		printf("[Client] Data sent - bytes=%u.\n", bytes);
 		mMux->asyncRecv(ep, c->RData, 2, this);
 	}
 	else
@@ -221,6 +225,7 @@ void TestAsyncClient::ConnectCb(u32 ec, NetEndpoint* ep)
 {
 	if (ec == NetEndpoint::EE_SUCCESS)
 	{
+		printf("[Client] Connected.\n");
 		sendTestData(ep);
 	}
 	else
@@ -251,5 +256,6 @@ void TestAsyncClient::sendTestData(NetEndpoint* ep)
 	xpfAssert(tlen <= 2048);
 	//s32 bytes = mEndpoint->send(mBuf, tlen, &ec);
 	c->Checksum = sum;
+	printf("[Client] asyncSend %u bytes.\n", tlen);
 	mMux->asyncSend(ep, c->WData, tlen, this);
 }

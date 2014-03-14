@@ -39,6 +39,23 @@ public:
     {
     }
 
+	void* try_pop_front(u32 &count)
+	{
+		bool locked = mLock.tryLock();
+		if (!locked)
+		{
+			count = 0xffffffff;
+			return 0;
+		}
+		
+		void *ret = mList.empty() ? 0 : mList.front();
+		count = mList.size();
+		if (count > 0)
+			mList.pop_front();
+		mLock.unlock();
+		return ret;
+	}
+	
     void* pop_front(u32 & count)
     {
         ScopedThreadLock ml(mLock);

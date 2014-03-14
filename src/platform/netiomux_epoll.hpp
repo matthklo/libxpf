@@ -37,6 +37,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <stdio.h>
+
 #define MAX_EPOLL_EVENTS_AT_ONCE (128)
 #define MAX_EPOLL_READY_LIST_LEN (10240)
 
@@ -113,9 +115,10 @@ namespace xpf
 		{
 			// Process the completion queue. Emit the completion event.
 			u32 remaining = 0;
-			EpollOverlapped *co = (EpollOverlapped*) mCompletionList.pop_front(remaining);
+			EpollOverlapped *co = (EpollOverlapped*) mCompletionList.try_pop_front(remaining);
 			if (co)
 			{
+				printf("[mux 0x%08X] completion - iotype=%u, len=%u\n", this, co->iotype, co->length);
 				switch (co->iotype)
 				{
 				case NetIoMux::EIT_RECV:
@@ -172,7 +175,7 @@ namespace xpf
 			// Re-arm the socket and push back to the tail
 			// of list if there are more operations remaining.
 			bool consumeSome = false;
-			NetEndpoint *ep = (NetEndpoint*) mReadyList.pop_front(remaining);
+			NetEndpoint *ep = (NetEndpoint*) mReadyList.try_pop_front(remaining);
 			do
 			{
 				if (!ep) break;
@@ -182,6 +185,7 @@ namespace xpf
 				ScopedThreadLock ml(ctx->lock);
 				xpfAssert(("Expecting ready flag on for all ", ctx->ready));
 
+				printf("[mux 0x%08X] ready - ep: 0x%08X\n", this, ep);
 				while (true) // process rqueue.
 				{
 					EpollOverlapped *o =
@@ -215,10 +219,12 @@ namespace xpf
 
 				if (rearm)
 				{
+					printf("[mux 0x%08X] rearm.\n", this);
 					ctx->ready = false;
 					int ec = epoll_ctl(mEpollfd, EPOLL_CTL_MOD, ep->getSocket(), &evt);
 					if ((ec == -1) && (errno == ENOENT))
 					{
+						printf("[mux 0x%08X] rearm - add.\n", this);
 						ec = epoll_ctl(mEpollfd, EPOLL_CTL_ADD, ep->getSocket(), &evt);
 					}
 					xpfAssert(ec == 0);
@@ -228,7 +234,7 @@ namespace xpf
 
 			// epoll_wait for more ready events.
 			// Will skip if the length of list is too large.
-			if (remaining < MAX_EPOLL_READY_LIST_LEN)
+			if ((remaining != 0xffffffff) && (remaining < MAX_EPOLL_READY_LIST_LEN))
 			{
 				epoll_event evts[MAX_EPOLL_EVENTS_AT_ONCE];
 				int nevts = epoll_wait(mEpollfd, evts, MAX_EPOLL_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
@@ -239,6 +245,7 @@ namespace xpf
 				}
 				else if (nevts > 0)
 				{
+					printf("[mux 0x%08X] epoll_wait signaled.\n", this);
 					for (int i=0; i<nevts; ++i)
 					{
 						uint32_t events = evts[i].events;
@@ -421,7 +428,7 @@ namespace xpf
 				return;
 			}
 
-			// Note: the resolving is blockable.
+			// Note: resolving can be blockable.
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
 			if (!NetEndpoint::resolvePeer(ep->getProtocol(), *peer, host, 0, port))
 			{
@@ -512,7 +519,7 @@ namespace xpf
 			if (ctx == 0)
 				return false;
 
-			bool complete = false;
+			bool complete = true;
 			switch (o->iotype)
 			{
 			case NetIoMux::EIT_RECV:
@@ -520,15 +527,14 @@ namespace xpf
 					ssize_t bytes = ::recv(ep->getSocket(), o->buffer, (size_t)o->length, MSG_DONTWAIT);
 					if (bytes >= 0)
 					{
+						printf("[mux] recived %d bytes.\n", bytes);
 						o->length = bytes;
 						o->errorcode = 0;
-						complete = true;
 					}
 					else if (errno != EWOULDBLOCK && errno != EAGAIN)
 					{
 						o->length = 0;
 						o->errorcode = errno;
-						complete = true;
 					}
 				}
 				break;
@@ -539,13 +545,11 @@ namespace xpf
 					{
 						o->length = bytes;
 						o->errorcode = 0;
-						complete = true;
 					}
 					else if (errno != EWOULDBLOCK && errno != EAGAIN)
 					{
 						o->length = 0;
 						o->errorcode = errno;
-						complete = true;
 					}
 				}
 				break;
@@ -558,7 +562,6 @@ namespace xpf
 						o->length = 0;
 						o->tep = new NetEndpoint(ep->getProtocol(), peersock, NetEndpoint::ESTAT_CONNECTED);
 						join(o->tep);
-						complete = true;
 						ep->setStatus(NetEndpoint::ESTAT_LISTENING);
 					}
 					else if (errno != EWOULDBLOCK && errno != EAGAIN)
@@ -566,11 +569,11 @@ namespace xpf
 						o->tep = 0;
 						o->length = 0;
 						o->errorcode = errno;
-						complete = true;
 						ep->setStatus(NetEndpoint::ESTAT_LISTENING);
 					}
 					else
 					{
+						complete = false;
 						ep->setStatus(NetEndpoint::ESTAT_ACCEPTING);
 					}
 				}
@@ -582,13 +585,11 @@ namespace xpf
 					{
 						o->length = bytes;
 						o->errorcode = 0;
-						complete = true;
 					}
 					else if (errno != EWOULDBLOCK && errno != EAGAIN)
 					{
 						o->length = 0;
 						o->errorcode = errno;
-						complete = true;
 					}
 				}
 				break;
@@ -600,13 +601,11 @@ namespace xpf
 					{
 						o->length = bytes;
 						o->errorcode = 0;
-						complete = true;
 					}
 					else if (errno != EWOULDBLOCK && errno != EAGAIN)
 					{
 						o->length = 0;
 						o->errorcode = errno;
-						complete = true;
 					}
 				}
 				break;
@@ -618,14 +617,12 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = 0;
-						complete = true;
 						ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
 					}
 					else if (errno != EINPROGRESS)
 					{
 						o->length = 0;
 						o->errorcode = errno;
-						complete = true;
 						ep->setStatus(NetEndpoint::ESTAT_INIT);
 					}
 					else
@@ -633,6 +630,7 @@ namespace xpf
 						xpfAssert(o->length == 0);
 						ep->setStatus(NetEndpoint::ESTAT_CONNECTING);
 						o->length = 1; // mark a connect() call in progress.
+						complete = false;
 					}
 				}
 				else // a connect() was called and waiting for result.
@@ -654,7 +652,6 @@ namespace xpf
 						o->peer = 0;
 						ep->setStatus(NetEndpoint::ESTAT_INIT);
 					}
-					complete = true;
 				}
 				break;
 
