@@ -92,8 +92,8 @@ int test_sync()
 
 int test_async()
 {
-	TestAsyncServer *asyncServ = new TestAsyncServer(1);
-	TestAsyncClient *asyncClient = new TestAsyncClient(1);
+	TestAsyncServer *asyncServ = new TestAsyncServer(5);
+	TestAsyncClient *asyncClient = new TestAsyncClient(5);
 	asyncServ->start();
 
 	xpf::Thread::sleep(100);

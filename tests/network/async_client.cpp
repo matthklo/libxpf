@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define NUM_ENPOINTS (1)
+#define NUM_ENPOINTS (16)
 
 using namespace xpf;
 
@@ -185,7 +185,6 @@ void TestAsyncClient::RecvCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 		}
 		else
 		{
-			printf("[Client] Recv - bytes=%u.\n", bytes);
 			sendTestData(ep);
 		}
 	}
@@ -210,7 +209,6 @@ void TestAsyncClient::SendCb(u32 ec, NetEndpoint* ep, const c8* buf, u32 bytes)
 			return;
 		}
 
-		printf("[Client] Data sent - bytes=%u.\n", bytes);
 		mMux->asyncRecv(ep, c->RData, 2, this);
 	}
 	else
@@ -256,6 +254,5 @@ void TestAsyncClient::sendTestData(NetEndpoint* ep)
 	xpfAssert(tlen <= 2048);
 	//s32 bytes = mEndpoint->send(mBuf, tlen, &ec);
 	c->Checksum = sum;
-	printf("[Client] asyncSend %u bytes.\n", tlen);
 	mMux->asyncSend(ep, c->WData, tlen, this);
 }

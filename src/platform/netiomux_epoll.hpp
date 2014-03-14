@@ -37,8 +37,6 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include <stdio.h>
-
 #define MAX_EPOLL_EVENTS_AT_ONCE (128)
 #define MAX_EPOLL_READY_LIST_LEN (10240)
 
@@ -99,7 +97,7 @@ namespace xpf
 
 		void enable(bool val)
 		{
-            mEnable = val;
+			mEnable = val;
 		}
 
 		void run()
@@ -113,12 +111,14 @@ namespace xpf
 
 		NetIoMux::ERunningStaus runOnce(u32 timeoutMs)
 		{
+			bool consumeSome = false;
+			u32 pendingCnt = 0;
+
 			// Process the completion queue. Emit the completion event.
-			u32 remaining = 0;
-			EpollOverlapped *co = (EpollOverlapped*) mCompletionList.try_pop_front(remaining);
+			EpollOverlapped *co = (EpollOverlapped*) mCompletionList.pop_front(pendingCnt);
 			if (co)
 			{
-				printf("[mux 0x%08X] completion - iotype=%u, len=%u\n", this, co->iotype, co->length);
+				consumeSome = true;
 				switch (co->iotype)
 				{
 				case NetIoMux::EIT_RECV:
@@ -172,10 +172,9 @@ namespace xpf
 			// Consume ready list:
 			// Pop the front socket out of list, and
 			// process all r/w operations until EWOULDBLOCK.
-			// Re-arm the socket and push back to the tail
-			// of list if there are more operations remaining.
-			bool consumeSome = false;
-			NetEndpoint *ep = (NetEndpoint*) mReadyList.try_pop_front(remaining);
+			// Re-arm the socket if there are more pending
+			// operations.
+			NetEndpoint *ep = (NetEndpoint*) mReadyList.pop_front(pendingCnt);
 			do
 			{
 				if (!ep) break;
@@ -184,30 +183,29 @@ namespace xpf
 
 				ScopedThreadLock ml(ctx->lock);
 				xpfAssert(("Expecting ready flag on for all ", ctx->ready));
-
-				printf("[mux 0x%08X] ready - ep: 0x%08X\n", this, ep);
-				while (true) // process rqueue.
+				ctx->ready = false;
+				while (!ctx->rdqueue.empty()) // process rqueue.
 				{
-					EpollOverlapped *o =
-							(!ctx->rdqueue.empty()) ? ctx->rdqueue.front() : 0;
-
+					EpollOverlapped *o = ctx->rdqueue.front();
 					if (!o) break;
 					consumeSome = true;
 					
 					if (performIoLocked(ep, o))
 						ctx->rdqueue.pop_front();
+					else
+						break;
 				} // end of while (true)
 
-				while (true) // process wrqueue
+				while (!ctx->wrqueue.empty()) // process wrqueue
 				{
-					EpollOverlapped *o =
-							(!ctx->wrqueue.empty()) ? ctx->wrqueue.front() : 0;
-
+					EpollOverlapped *o = ctx->wrqueue.front();
 					if (!o) break;
 					consumeSome = true;
 
 					if (performIoLocked(ep, o))
 						ctx->wrqueue.pop_front();
+					else
+						break;
 				} // end of while (true)
 
 				bool rearm = false;
@@ -219,12 +217,9 @@ namespace xpf
 
 				if (rearm)
 				{
-					printf("[mux 0x%08X] rearm.\n", this);
-					ctx->ready = false;
 					int ec = epoll_ctl(mEpollfd, EPOLL_CTL_MOD, ep->getSocket(), &evt);
 					if ((ec == -1) && (errno == ENOENT))
 					{
-						printf("[mux 0x%08X] rearm - add.\n", this);
 						ec = epoll_ctl(mEpollfd, EPOLL_CTL_ADD, ep->getSocket(), &evt);
 					}
 					xpfAssert(ec == 0);
@@ -234,7 +229,7 @@ namespace xpf
 
 			// epoll_wait for more ready events.
 			// Will skip if the length of list is too large.
-			if ((remaining != 0xffffffff) && (remaining < MAX_EPOLL_READY_LIST_LEN))
+			if (pendingCnt < MAX_EPOLL_READY_LIST_LEN)
 			{
 				epoll_event evts[MAX_EPOLL_EVENTS_AT_ONCE];
 				int nevts = epoll_wait(mEpollfd, evts, MAX_EPOLL_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
@@ -245,7 +240,6 @@ namespace xpf
 				}
 				else if (nevts > 0)
 				{
-					printf("[mux 0x%08X] epoll_wait signaled.\n", this);
 					for (int i=0; i<nevts; ++i)
 					{
 						uint32_t events = evts[i].events;
@@ -457,9 +451,9 @@ namespace xpf
 			ep->setAsyncContext((vptr)ctx);
 
 			// request the socket to be non-blocking
-            int flags = fcntl(sock, F_GETFL);
-            xpfAssert(flags != 0xffffffff);
-            fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+			int flags = fcntl(sock, F_GETFL);
+			xpfAssert(flags != -1);
+			fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
 			return true;
 		}
@@ -497,9 +491,9 @@ namespace xpf
 			}
 
 			// reset the socket to be blocking
-            int flags = fcntl(sock, F_GETFL);
-            xpfAssert(flags != 0xffffffff);
-            fcntl(sock, F_SETFL, flags & (0 ^ O_NONBLOCK));
+			int flags = fcntl(sock, F_GETFL);
+			xpfAssert(flags != -1);
+			fcntl(sock, F_SETFL, flags & (0 ^ O_NONBLOCK));
 
 			return (ec == 0);
 		}
@@ -527,7 +521,6 @@ namespace xpf
 					ssize_t bytes = ::recv(ep->getSocket(), o->buffer, (size_t)o->length, MSG_DONTWAIT);
 					if (bytes >= 0)
 					{
-						printf("[mux] recived %d bytes.\n", bytes);
 						o->length = bytes;
 						o->errorcode = 0;
 					}
@@ -535,6 +528,10 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+					}
+					else
+					{
+						complete = false;
 					}
 				}
 				break;
@@ -550,6 +547,10 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+					}
+					else
+					{
+						complete = false;
 					}
 				}
 				break;
@@ -591,6 +592,10 @@ namespace xpf
 						o->length = 0;
 						o->errorcode = errno;
 					}
+					else
+					{
+						complete = false;
+					}
 				}
 				break;
 			case NetIoMux::EIT_SENDTO:
@@ -606,6 +611,10 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+					}
+					else
+					{
+						complete = false;
 					}
 				}
 				break;

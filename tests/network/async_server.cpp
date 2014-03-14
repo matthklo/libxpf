@@ -161,7 +161,7 @@ void TestAsyncServer::AcceptCb(NetEndpoint::EError ec, NetEndpoint* listeningEp,
 		b->Used = 0;
 		acceptedEp->setUserData((vptr)b);
 
-		printf("[Serv] A new connection accepted. ep:0x%08X.\n", acceptedEp);
+		printf("[Serv] A new connection accepted.\n");
 		mMux->asyncRecv(acceptedEp, b->RData, 2048, this);
 		mMux->asyncAccept(listeningEp, this);
 	}
@@ -179,7 +179,6 @@ void TestAsyncServer::RecvCb(NetEndpoint::EError ec, NetEndpoint* ep, const c8* 
 	}
 	else
 	{
-		printf("[Serv] Recv ep:0x%08X. bytes=%u\n", ep, bytes);
 		Buffer *b = (Buffer*)ep->getUserData();
 
 		const u16 tbytes = b->Used + bytes;
@@ -227,5 +226,4 @@ void TestAsyncServer::RecvCb(NetEndpoint::EError ec, NetEndpoint* ep, const c8* 
 void TestAsyncServer::SendCb(NetEndpoint::EError ec, NetEndpoint* ep, const  c8* buf, u32 bytes)
 {
 	xpfAssert(ec == NetEndpoint::EE_SUCCESS);
-	printf("[Serv] Send ep:0x%08X. bytes=%u\n", ep, bytes);
 }
