@@ -37,8 +37,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#define MAX_EPOLL_EVENTS_AT_ONCE (128)
-#define MAX_EPOLL_READY_LIST_LEN (10240)
+#define MAX_EVENTS_AT_ONCE (128)
+#define MAX_READY_LIST_LEN (10240)
 
 #define ASYNC_OP_READ  (0)
 #define ASYNC_OP_WRITE (1)
@@ -47,9 +47,9 @@ namespace xpf
 {
 
 	// data record per operation
-	struct EpollOverlapped
+	struct Overlapped
 	{
-		EpollOverlapped(NetEndpoint *ep, NetIoMux::EIoType iocode)
+		Overlapped(NetEndpoint *ep, NetIoMux::EIoType iocode)
 			: iotype(iocode), sep(ep), tep(0), buffer(0), length(0), peer(0), cb(0), errorcode(0) {}
 
 		NetIoMux::EIoType iotype;
@@ -63,10 +63,10 @@ namespace xpf
 	};
 
 	// data record per socket
-	struct EpollAsyncContext
+	struct AsyncContext
 	{
-		std::deque<EpollOverlapped*>  rdqueue; // queued read operations
-		std::deque<EpollOverlapped*>  wrqueue; // queued write operations
+		std::deque<Overlapped*>  rdqueue; // queued read operations
+		std::deque<Overlapped*>  wrqueue; // queued write operations
 		bool                          ready;
 		ThreadLock                    lock;
 		NetEndpoint                  *ep;
@@ -115,7 +115,7 @@ namespace xpf
 			u32 pendingCnt = 0;
 
 			// Process the completion queue. Emit the completion event.
-			EpollOverlapped *co = (EpollOverlapped*) mCompletionList.pop_front(pendingCnt);
+			Overlapped *co = (Overlapped*) mCompletionList.pop_front(pendingCnt);
 			if (co)
 			{
 				consumeSome = true;
@@ -162,7 +162,7 @@ namespace xpf
 					break;
 				case NetIoMux::EIT_INVALID:
 				default:
-					xpfAssert(("Unrecognized iotype. Maybe a corrupted EpollOverlapped.", false));
+					xpfAssert(("Unrecognized iotype. Maybe a corrupted Overlapped.", false));
 					break;
 				}
 				delete co;
@@ -178,7 +178,7 @@ namespace xpf
 			do
 			{
 				if (!ep) break;
-				EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+				AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 				if (!ctx) break;
 
 				ScopedThreadLock ml(ctx->lock);
@@ -186,7 +186,7 @@ namespace xpf
 				ctx->ready = false;
 				while (!ctx->rdqueue.empty()) // process rqueue.
 				{
-					EpollOverlapped *o = ctx->rdqueue.front();
+					Overlapped *o = ctx->rdqueue.front();
 					if (!o) break;
 					consumeSome = true;
 					
@@ -198,7 +198,7 @@ namespace xpf
 
 				while (!ctx->wrqueue.empty()) // process wrqueue
 				{
-					EpollOverlapped *o = ctx->wrqueue.front();
+					Overlapped *o = ctx->wrqueue.front();
 					if (!o) break;
 					consumeSome = true;
 
@@ -229,10 +229,10 @@ namespace xpf
 
 			// epoll_wait for more ready events.
 			// Will skip if the length of list is too large.
-			if (pendingCnt < MAX_EPOLL_READY_LIST_LEN)
+			if (pendingCnt < MAX_READY_LIST_LEN)
 			{
-				epoll_event evts[MAX_EPOLL_EVENTS_AT_ONCE];
-				int nevts = epoll_wait(mEpollfd, evts, MAX_EPOLL_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
+				epoll_event evts[MAX_EVENTS_AT_ONCE];
+				int nevts = epoll_wait(mEpollfd, evts, MAX_EVENTS_AT_ONCE, (consumeSome)? 0 : timeoutMs);
 				xpfAssert(("Failed on calling epoll_wait", nevts != -1));
 				if (0 == nevts)
 				{
@@ -244,7 +244,7 @@ namespace xpf
 					{
 						uint32_t events = evts[i].events;
 						NetEndpoint *ep = (NetEndpoint*) evts[i].data.ptr;
-						EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+						AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 						
 						ScopedThreadLock ml(ctx->lock);
 						xpfAssert(("Expecting non-ready ep in epoll_wait.", ctx->ready == false));
@@ -252,17 +252,17 @@ namespace xpf
 						
 						if ((events & (EPOLLERR | EPOLLHUP)))
 						{
-							for (std::deque<EpollOverlapped*>::iterator it = ctx->rdqueue.begin();
+							for (std::deque<Overlapped*>::iterator it = ctx->rdqueue.begin();
 									it != ctx->rdqueue.end(); ++it)
 							{
-								EpollOverlapped *o = (*it);
+								Overlapped *o = (*it);
 								o->errorcode = ECONNABORTED;
 								mCompletionList.push_back((void*)o);
 							}
-							for (std::deque<EpollOverlapped*>::iterator it = ctx->wrqueue.begin();
+							for (std::deque<Overlapped*>::iterator it = ctx->wrqueue.begin();
 									it != ctx->wrqueue.end(); ++it)
 							{
-								EpollOverlapped *o = (*it);
+								Overlapped *o = (*it);
 								o->errorcode = ECONNABORTED;
 								mCompletionList.push_back((void*)o);
 							}
@@ -303,12 +303,12 @@ namespace xpf
 				return;
 			}
 
-			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
+			Overlapped *o = new Overlapped(ep, iotype);
 			o->buffer = buf;
 			o->length = buflen;
 			o->cb = cb;
 			
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			ScopedThreadLock ml(ctx->lock);
 			if (!performIoLocked(ep, o))
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
@@ -328,13 +328,13 @@ namespace xpf
 
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
 
-			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
+			Overlapped *o = new Overlapped(ep, iotype);
 			o->buffer = buf;
 			o->length = buflen;
 			o->cb = cb;
 			o->peer = peer;
 
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			ScopedThreadLock ml(ctx->lock);
 			if (!performIoLocked(ep, o))
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
@@ -352,12 +352,12 @@ namespace xpf
 				return;
 			}
 
-			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
+			Overlapped *o = new Overlapped(ep, iotype);
 			o->buffer = (c8*)buf;
 			o->length = buflen;
 			o->cb = cb;
 
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			ScopedThreadLock ml(ctx->lock);
 			if (!performIoLocked(ep, o))
 				appendAsyncOpLocked(ep, o, ASYNC_OP_WRITE);
@@ -377,13 +377,13 @@ namespace xpf
 
 			NetEndpoint::Peer *p = new NetEndpoint::Peer(*peer); // clone
 
-			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
+			Overlapped *o = new Overlapped(ep, iotype);
 			o->buffer = (c8*)buf;
 			o->length = buflen;
 			o->cb = cb;
 			o->peer = p;
 
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			ScopedThreadLock ml(ctx->lock);
 			if (!performIoLocked(ep, o))
 				appendAsyncOpLocked(ep, o, ASYNC_OP_WRITE);
@@ -401,10 +401,10 @@ namespace xpf
 				return;
 			}
 
-			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
+			Overlapped *o = new Overlapped(ep, iotype);
 			o->cb = cb;
 
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			ScopedThreadLock ml(ctx->lock);
 			if (!performIoLocked(ep, o))
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
@@ -430,11 +430,11 @@ namespace xpf
 				return;
 			}
 
-			EpollOverlapped *o = new EpollOverlapped(ep, iotype);
+			Overlapped *o = new Overlapped(ep, iotype);
 			o->cb = cb;
 			o->peer = peer;
 
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			ScopedThreadLock ml(ctx->lock);
 			if (!performIoLocked(ep, o))
 				appendAsyncOpLocked(ep, o, ASYNC_OP_WRITE);
@@ -445,7 +445,7 @@ namespace xpf
 			s32 sock = ep->getSocket();
 
 			// bundle with an async context
-			EpollAsyncContext *ctx = new EpollAsyncContext;
+			AsyncContext *ctx = new AsyncContext;
 			ctx->ready = false;
 			ctx->ep = ep;
 			ep->setAsyncContext((vptr)ctx);
@@ -472,7 +472,7 @@ namespace xpf
 			}
 
 			// delete the async context
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			xpfAssert(ctx != 0);
 			if (!ctx)
 			{
@@ -506,9 +506,9 @@ namespace xpf
 
 	private:
 
-		bool performIoLocked(NetEndpoint *ep, EpollOverlapped *o) // require ep->ctx locked.
+		bool performIoLocked(NetEndpoint *ep, Overlapped *o) // require ep->ctx locked.
 		{
-			EpollAsyncContext *ctx = (EpollAsyncContext*) ep->getAsyncContext();
+			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
 			xpfAssert(ctx != 0);
 			if (ctx == 0)
 				return false;
@@ -675,9 +675,9 @@ namespace xpf
 			return complete;
 		}
 	
-		void appendAsyncOpLocked(NetEndpoint *ep, EpollOverlapped *o, u8 mode) // require ep->ctx locked.
+		void appendAsyncOpLocked(NetEndpoint *ep, Overlapped *o, u8 mode) // require ep->ctx locked.
 		{
-			EpollAsyncContext *ctx = (ep == 0)? 0 : (EpollAsyncContext*)ep->getAsyncContext();
+			AsyncContext *ctx = (ep == 0)? 0 : (AsyncContext*)ep->getAsyncContext();
 			if (ctx == 0 || o == 0)
 			{
 				xpfAssert(false);
@@ -704,7 +704,7 @@ namespace xpf
 			}
 		}
 
-		NetIoMuxSyncFifo mCompletionList; // fifo of EpollOverlapped.
+		NetIoMuxSyncFifo mCompletionList; // fifo of Overlapped.
 		NetIoMuxSyncFifo mReadyList;      // fifo of NetEndpoints.
 		bool mEnable;
 		int mEpollfd;
