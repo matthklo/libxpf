@@ -528,6 +528,7 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 					}
 					else
 					{
@@ -547,6 +548,7 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 					}
 					else
 					{
@@ -570,6 +572,7 @@ namespace xpf
 						o->tep = 0;
 						o->length = 0;
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 						ep->setStatus(NetEndpoint::ESTAT_LISTENING);
 					}
 					else
@@ -591,6 +594,7 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 					}
 					else
 					{
@@ -611,6 +615,7 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 					}
 					else
 					{
@@ -632,6 +637,7 @@ namespace xpf
 					{
 						o->length = 0;
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 						ep->setStatus(NetEndpoint::ESTAT_INIT);
 					}
 					else
@@ -657,6 +663,7 @@ namespace xpf
 					else
 					{
 						o->errorcode = errno;
+						ep->setLastPlatformErrno(errno);
 						delete o->peer;
 						o->peer = 0;
 						ep->setStatus(NetEndpoint::ESTAT_INIT);

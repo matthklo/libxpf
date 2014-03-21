@@ -115,6 +115,8 @@ public:
 	s32          getSocket() const;
 	vptr         getUserData() const;
 	vptr         setUserData(vptr ud);
+	s32          getLastPlatformErrno() const;
+	void         setLastPlatformErrno(s32 ec);
 
 	// TODO: getsockopt setsockopt
 

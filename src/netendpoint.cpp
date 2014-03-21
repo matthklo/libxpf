@@ -38,6 +38,7 @@
 #include <sys/select.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <errno.h>
 #endif
 
 #ifndef INVALID_SOCKET
@@ -57,7 +58,12 @@ public:
 		reset();
 
 		if (!platformInit())
+		{
+#ifdef XPF_PLATFORM_WINDOWS
+			Errno = WSANOTINITIALISED;
+#endif
 			return;
+		}
 
 		Status = NetEndpoint::ESTAT_INIT;
 
@@ -99,6 +105,7 @@ public:
 		Socket = ::socket(family, type, proto);
 		if (INVALID_SOCKET == Socket)
 		{
+			saveLastError();
 			Status = NetEndpoint::ESTAT_INVALID;
 		}
 	}
@@ -128,6 +135,7 @@ public:
 		}
 
 		// abnormal case.
+		saveLastError();
 		close();
 	}
 
@@ -167,7 +175,10 @@ public:
 			// Always use the 1st record in results.
 			int ec = ::connect(Socket, (const sockaddr*)peer.Data, peer.Length);
 			if (0 != ec)
+			{
+				saveLastError();
 				break;
+			}
 
 			std::memcpy(SockAddr, peer.Data, peer.Length);
 
@@ -179,6 +190,7 @@ public:
 					0, 0, NI_NUMERICHOST);
 			if (0 != ec)
 			{
+				saveLastError();
 				xpfAssert( ("Expecting getnameinfo succeed after connect.", false) );
 				for (int i=0; i<XPF_NETENDPOINT_MAXADDRLEN; ++i)
 				{
@@ -228,6 +240,7 @@ public:
 		{
 			if (errorcode)
 				*errorcode = (u32)NetEndpoint::EE_RESOLVE;
+			saveLastError();
 			return false;
 		}
 
@@ -241,6 +254,7 @@ public:
 			{
 				if (errorcode)
 					*errorcode = (u32)NetEndpoint::EE_BIND;
+				saveLastError();
 				break;
 			}
 
@@ -253,6 +267,7 @@ public:
 					if (errorcode)
 						*errorcode = (u32)NetEndpoint::EE_LISTEN;
 					Status = NetEndpoint::ESTAT_INVALID;
+					saveLastError();
 					break;
 				}
 			}
@@ -286,6 +301,7 @@ public:
 		{
 			if (errorcode)
 				*errorcode = (u32) NetEndpoint::EE_ACCEPT;
+			saveLastError();
 			return 0;
 		}
 
@@ -321,6 +337,7 @@ public:
 		{
 			if (errorcode)
 				*errorcode = (u32) NetEndpoint::EE_RECV;
+			saveLastError();
 			return 0;
 		}
 
@@ -349,6 +366,7 @@ public:
 		{
 			if (errorcode)
 				*errorcode = (u32) NetEndpoint::EE_RECV;
+			saveLastError();
 			return 0;
 		}
 
@@ -373,6 +391,7 @@ public:
 		{
 			if (errorcode)
 				*errorcode = (u32) NetEndpoint::EE_SEND;
+			saveLastError();
 			return 0;
 		}
 
@@ -400,6 +419,7 @@ public:
 		{
 			if (errorcode)
 				*errorcode = (u32) NetEndpoint::EE_SEND;
+			saveLastError();
 			return 0;
 		}
 
@@ -442,6 +462,8 @@ public:
 		}
 
 		s32 ec = ::shutdown(Socket, shutdownFlag);
+		if (ec != 0)
+			saveLastError();
 		if (errorcode)
 			*errorcode = (0 == ec) ? (u32)NetEndpoint::EE_SUCCESS : (u32) NetEndpoint::EE_SHUTDOWN;
 	}
@@ -466,12 +488,22 @@ public:
 		Port = 0;
 		Status = NetEndpoint::ESTAT_INVALID;
 		Socket = INVALID_SOCKET;
+		Errno = 0;
 
 		for (int i=0; i<XPF_NETENDPOINT_MAXADDRLEN; ++i)
 		{
 			Address[i] = 0;
 			SockAddr[i] = 0;
 		}
+	}
+
+	void saveLastError()
+	{
+#ifdef XPF_PLATFORM_WINDOWS
+		Errno = WSAGetLastError();
+#else
+		Errno = errno;
+#endif
 	}
 
 	static bool platformInit()
@@ -508,6 +540,7 @@ public:
 	const u32             Protocol;
 	NetEndpoint::EStatus  Status;
 	s32                   Socket;
+	s32                   Errno;
 }; // end of struct NetEndpointImpl
 
 
@@ -690,6 +723,16 @@ vptr NetEndpoint::setUserData(vptr ud)
 	vptr olddata = pUserData;
 	pUserData = ud;
 	return olddata;
+}
+
+s32 NetEndpoint::getLastPlatformErrno() const
+{
+	return pImpl->Errno;
+}
+
+void NetEndpoint::setLastPlatformErrno(s32 ec)
+{
+	pImpl->Errno = ec;
 }
 
 }; // end of namespace xpf
