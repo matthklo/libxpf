@@ -40,5 +40,6 @@ ADD_SUBDIRECTORY("./tests/string")
 ADD_SUBDIRECTORY("./tests/delegate")
 ADD_SUBDIRECTORY("./tests/allocators")
 ADD_SUBDIRECTORY("./tests/network")
+ADD_SUBDIRECTORY("./tests/base64")
 
 
