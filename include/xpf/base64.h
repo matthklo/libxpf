@@ -32,7 +32,40 @@ namespace xpf
 class XPF_API Base64
 {
 public:
+	/**
+	 *  Encode a bulk of memory buffer to a base64 encoded ASCII string.
+	 *
+	 *  Input Parameters:
+	 *    input     - Pointer to the input buffer. Must NOT be NULL.
+	 *    inputlen  - Length of input buffer. Must >= 0.
+	 *    output    - Pointer to the output buffer to hold the encoded string.
+	 *                If either output or outputlen is 0, the encode() simply
+	 *                computes the output length required and returns.
+	 *    outputlen - Length of output buffer. If its value is smaller than
+	 *                required (except for 0, see above), encode() returns
+	 *                -1 and fill the required length in *outputlen.
+	 *  Return Value:
+	 *    -1 to indicate an error. Otherwise it is the length of the encoded
+	 *    string.
+	 */
 	static int encode(const char *input, int inputlen, char *output, int *outputlen);
+
+	/**
+	*  Decode a base64 encoded ASCII string to original data.
+	*
+	*  Input Parameters:
+	*    input     - Pointer to the input buffer. Must NOT be NULL.
+	*    inputlen  - Length of input buffer. Must >= 0.
+	*    output    - Pointer to the output buffer to hold the decoded data.
+	*                If either output or outputlen is 0, the decode() simply
+	*                computes the output length required and returns.
+	*    outputlen - Length of output buffer. If its value is smaller than
+	*                required (except for 0, see above), decode() returns
+	*                -1 and fill the required length in *outputlen.
+	*  Return Value:
+	*    -1 to indicate an error. Otherwise it is the length of the decoded
+	*    data.
+	*/
 	static int decode(const char *input, int inputlen, char *output, int *outputlen);
 };
 
