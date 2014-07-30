@@ -759,9 +759,9 @@ public:
 							if (isSigned || isFloat)
 							{
 								if ((flag & FLAG_FORCESIGN) && !neg)
-									append(1, (T)'+');
+									base_type::append(1, (T)'+');
 								if ((flag & FLAG_BLANKSIGN) && !neg)
-									append(1, (T)' ');
+									base_type::append(1, (T)' ');
 
 								if (isFloat && (flag & FLAG_PREFIXSUFFIX))
 								{
@@ -774,13 +774,13 @@ public:
 							{
 								if (!((valstr[0]==(T)'0') && (valstr[1]==(T)0)))
 								{
-									append(1, (T)'0');
+									base_type::append(1, (T)'0');
 									if (c != 'o')
-										append(1, (T)c); // append either 'x' or 'X'
+										base_type::append(1, (T)c); // append either 'x' or 'X'
 								}
 							}
 
-							append(valstr);
+							base_type::append(valstr);
 						}
 						else 
 						{
@@ -882,15 +882,15 @@ public:
 								const int cnt = (width > (int)valstr.size())? (width - (int)valstr.size()): 0;
 								if (flag & FLAG_LEFTJUSTIFY)
 								{
-									append(valstr);
+									base_type::append(valstr);
 									if (cnt > 0)
-										append(cnt, (T)' ');
+										base_type::append(cnt, (T)' ');
 								}
 								else
 								{
 									if (cnt > 0)
-										append(cnt, (T)' ');
-									append(valstr);
+										base_type::append(cnt, (T)' ');
+									base_type::append(valstr);
 								}
 							}
 							else // width specified but no percision
@@ -906,24 +906,24 @@ public:
 								const int padlen = (width > fulllen)? (width - fulllen): 0;
 								if (flag & FLAG_LEFTJUSTIFY)
 								{
-									append(prefix);
-									append(valstr);
+									base_type::append(prefix);
+									base_type::append(valstr);
 									if (padlen > 0)
-										append(padlen, (T)' ');
+										base_type::append(padlen, (T)' ');
 								}
 								else if (flag & FLAG_LEFTPADZERO)
 								{
-									append(prefix);
+									base_type::append(prefix);
 									if (padlen > 0)
-										append(padlen, (T)'0');
-									append(valstr);
+										base_type::append(padlen, (T)'0');
+									base_type::append(valstr);
 								}
 								else
 								{
 									if (padlen > 0)
-										append(padlen, (T)' ');
-									append(prefix);
-									append(valstr);
+										base_type::append(padlen, (T)' ');
+									base_type::append(prefix);
+									base_type::append(valstr);
 								}
 							}
 						}
@@ -943,7 +943,7 @@ public:
 							for (T* vp = v; *vp != T(); ++vp, ++cnt);
 
 							if (cnt > 0)
-								append(v, cnt);
+								base_type::append(v, cnt);
 						}
 						else
 						{
@@ -960,15 +960,15 @@ public:
 							int pad = ((flag & FLAG_WIDTH_SPECIFIED) && (width > cnt))? (width - cnt): 0;
 							if (flag & FLAG_LEFTJUSTIFY)
 							{
-								append(v, cnt);
+								base_type::append(v, cnt);
 								if (pad > 0)
-									append(pad, (T)' ');
+									base_type::append(pad, (T)' ');
 							}
 							else
 							{
 								if (pad > 0)
-									append(pad, (T)' ');
-								append(v, cnt);
+									base_type::append(pad, (T)' ');
+								base_type::append(v, cnt);
 							}
 						}
                     }
