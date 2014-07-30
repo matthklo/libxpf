@@ -40,7 +40,7 @@ struct TlsIndex
 	DWORD Index;
 };
 
-vptr
+vptr XPF_API
 TlsCreate()
 {
 	DWORD idx = TlsAlloc();
@@ -56,7 +56,7 @@ TlsCreate()
 	return (vptr)ret;
 }
 
-void
+void XPF_API
 TlsDelete(vptr index)
 {
 	xpfAssert(("Operate TlsDelete() with a null index.", (index != 0)));
@@ -72,7 +72,7 @@ TlsDelete(vptr index)
 	delete idx;
 }
 
-vptr
+vptr XPF_API
 TlsGet(vptr index)
 {
 	xpfAssert(("Operate TlsGet() with a null input.", (index != 0)));
@@ -89,7 +89,7 @@ TlsGet(vptr index)
 	return (vptr)data;
 }
 
-void
+void XPF_API
 TlsSet(vptr index, vptr data)
 {
 	xpfAssert(("Operate TlsSet() with a null input.", (index != 0)));

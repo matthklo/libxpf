@@ -38,7 +38,8 @@
 
 using namespace xpf;
 
-TlsMap<u64> _g_tls;
+TlsMap<u64> _g_tlsmap;
+vptr _g_tlsdata;
 
 struct MyHot
 {
@@ -57,6 +58,7 @@ public:
 		if (Thread::INVALID_THREAD_ID == tid)
 		{
 			tid = Thread::getThreadID();
+			TlsSet(_g_tlsdata, (vptr)&tid);
 		}
 
 		u64 sec = userdata;
@@ -70,11 +72,18 @@ public:
 
 		while (sec--)
 		{
+			// Verify TLS
+			vptr data = TlsGet(_g_tlsdata);
+			xpfAssert((*((ThreadID*)data)) == tid);
+
 			printf("Thread [%llu]: Remaining %llu seconds. \n", tid, sec);
 			Thread::sleep(1000);
-			_g_tls.put(userdata, true);
+			_g_tlsmap.put(userdata, true);
+			TlsSet(_g_tlsdata, (vptr)&tid);
 		}
 
+		vptr data = TlsGet(_g_tlsdata);
+		xpfAssert((*((ThreadID*)data)) == tid);
 		return (u32)tid;
 	}
 
@@ -91,6 +100,8 @@ int main()
 	::srand((unsigned int)::time(NULL));
 
 	_g_hot.sum = 0;
+	_g_tlsdata = TlsCreate();
+	xpfAssert(_g_tlsdata != 0);
 
 	std::vector<Thread*> ta;
 
@@ -120,7 +131,7 @@ int main()
 				u64 udata;
 				xpfAssert(ta[i]->getStatus() == Thread::TRS_JOINED);
 				xpfAssert((u32)ta[i]->getID() == ta[i]->getExitCode());
-				xpfAssert(_g_tls.get(udata, ta[i]->getID()));
+				xpfAssert(_g_tlsmap.get(udata, ta[i]->getID()));
 				xpfAssert((ta[i]->getData() == udata));
 				delete ta[i];
 				ta[i] = ta[ta.size()-1];
@@ -137,5 +148,6 @@ int main()
 
 	xpfAssert(("Expecting matched sum.", _g_hot.sum == expectingCnt));
 
+	TlsDelete(_g_tlsdata);
 	return 0;
 }
