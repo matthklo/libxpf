@@ -42,7 +42,7 @@ int main()
 #endif
 
 	wstring str1 = L"The elements of the C language library are also included as a subset of the C++ Standard library. \x6b50\x7279\x514b\x651c\x624b\x5de8\x5320\x96fb\x8166\x9996\x5ea6\x63a8\x51fa\x004d\x006f\x006c\x0064\x0066\x006c\x006f\x0077\x8a8d\x8b49\x0020\x0020\x63d0\x5347\x81fa\x7063\x0049\x0043\x0054\x7522\x696d\x7af6\x722d\x529b";
-	
+
 	// apply a chain of conversions ...
 	u32string str2 = to_ucs4(str1);
 	string str3    = to_utf8(str2);
@@ -133,6 +133,14 @@ int main()
 	{
 		wstring aaa = xpf::lexical_cast<wchar_t>(false);
 		xpfAssert(aaa == L"false");
+	}
+
+	// printf - width/percision test
+	{
+		string buf;
+		buf.printf("%% %c %c %-10.5s %*.*s %.2f %03d %+03d %#.0f %#o %#05X %%",
+			'C', 0, "0123456789", 10, 5, "987654321", 0.12345f, 15, 1518, 2.0f, 8, 255);
+		xpfAssert(buf == "% C  01234           98765 0.12 015 +1518 2. 010 0X0FF %");
 	}
 
 	printf("string test pass.\n");

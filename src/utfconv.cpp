@@ -31,12 +31,14 @@ enum EStatus { END_OF_STREAM = 0xFFFFFFFF, BAD_FORMAT = 0xFFFFFFFE, SUCCESS = 0,
 class IUcReader
 {
 public:
+	virtual ~IUcReader() {}
 	virtual u32 read() = 0;
 };
 
 class IUcWriter
 {
 public:
+	virtual ~IUcWriter() {}
 	virtual u32 write(u32 cp) = 0;
 	virtual u32 closure() = 0;
 };
@@ -413,6 +415,8 @@ s32 utfConvInner( void * sbuf, void * dbuf, u32 scw, u32 dcw, s32 scnt, s32 dcnt
 		cnt++;
 	}
 
+	delete r;
+	delete w;
 	return cnt;
 }
 
