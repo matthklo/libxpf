@@ -38,7 +38,7 @@
 
 using namespace xpf;
 
-ThreadLocalStorage<u64> _g_tls;
+TlsMap<u64> _g_tls;
 
 struct MyHot
 {
