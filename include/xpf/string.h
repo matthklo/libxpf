@@ -765,7 +765,7 @@ public:
 
 								if (isFloat && (flag & FLAG_PREFIXSUFFIX))
 								{
-									if (valstr.find_first_of((T)'.') == npos)
+									if (valstr.find_first_of((T)'.') == base_type::npos)
 										valstr.append(1, (T)'.');
 								}
 							}
@@ -833,7 +833,7 @@ public:
 									{
 										size_t idx = valstr.find_first_of((T)'.');
 										int padcnt = 0;
-										if (idx == npos) // no '.' in content, only possible to pad
+										if (idx == base_type::npos) // no '.' in content, only possible to pad
 										{
 											if ((percision > 0) || (flag & FLAG_PREFIXSUFFIX))
 											{
