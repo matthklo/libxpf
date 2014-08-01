@@ -49,16 +49,16 @@ namespace xpf {
 // Returns an opaque value called index. Except 0 indicates an error occurred, do not make any 
 // assumption on the content of it.
 // Use this index in subsequent calls to TlsDelete()/TlsGet()/TlsSet().
-vptr TlsCreate();
+vptr XPF_API TlsCreate();
 // Delete an index created by TlsCreate().
-void TlsDelete(vptr index);
+void XPF_API TlsDelete(vptr index);
 // Retrieve the data associated with the index and the calling thread.
 // After an index has been created, it is by default associated with 0
 // for all threads.
-vptr TlsGet(vptr index);
+vptr XPF_API TlsGet(vptr index);
 // Associate the index with a custom data.
 // This association is space-independent among threads.
-void TlsSet(vptr index, vptr data);
+void XPF_API TlsSet(vptr index, vptr data);
 
 
 /*

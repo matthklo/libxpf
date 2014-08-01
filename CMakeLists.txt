@@ -42,6 +42,7 @@ ADD_SUBDIRECTORY("./tests/allocators")
 ADD_SUBDIRECTORY("./tests/network")
 ADD_SUBDIRECTORY("./tests/base64")
 ADD_SUBDIRECTORY("./tests/uuid")
+ADD_SUBDIRECTORY("./tests/coroutine")
 
 
 
