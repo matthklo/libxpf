@@ -27,6 +27,19 @@
 #define _XPF_COROUTINE_IMPL_INCLUDED_
 #endif
 
+/*
+*  http://en.wikipedia.org/wiki/Setcontext
+*  Context-manipulating functions were introduced in POSIX.1-2001 standard
+*  but later marked as obsoleted and removed in POSIX.1-2004, POSIX.1-2008.
+*  However, there are no other way to implement fibers/coroutines/cooperative
+*  threads without them. So most UN*X platforms still support these functions.
+*/
+
+// MacOSX/iOS requires _XOPEN_SOURCE to be declared.
+#ifdef __APPLE__
+#define _XOPEN_SOURCE
+#endif
+
 #include <pthread.h>
 #include <ucontext.h>
 #include <map>
