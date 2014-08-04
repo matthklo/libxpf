@@ -140,7 +140,7 @@ bool _g_memop = true;
 
 bool test(bool sysalloc = false)
 {
-	MemoryPool *pool = (sysalloc)? 0: MemoryPool::instance();
+	BuddyAllocator *pool = (sysalloc) ? 0 : BuddyAllocator::instance();
 
 	Bank profile[] =
 	{
@@ -316,7 +316,7 @@ int main()
 
 	printf("\n==== SanityTest ====\n");
 
-	u32 size = MemoryPool::create(POOLSIZE);
+	u32 size = BuddyAllocator::create(POOLSIZE);
 	xpfAssert(0 != size);
 
 
@@ -325,7 +325,7 @@ int main()
 
 	// std::allocator compatibility
 	{
-		std::deque<int, Allocator<int, MemoryPool> > verifyingDeque;
+		std::deque<int, Allocator<int, AllocInstOf<BuddyAllocator> > > verifyingDeque;
 		int i=0;
 		for (; i<20000; i++)
 		{
@@ -339,10 +339,10 @@ int main()
 			verifyingDeque.pop_front();
 		}
 	}
-	MemoryPool::destory();
+	BuddyAllocator::destory();
 
-	MemoryStack::create(1024);
-	MemoryStack *stack = MemoryStack::instance();
+	LinearAllocator::create(1024);
+	LinearAllocator *stack = LinearAllocator::instance();
 	xpfAssert((stack != 0) && (stack->capacity() == 1024) && (stack->available() == 1016));
 	void *ptrs[5];
 	for (u32 i=0; i<5; i++)
@@ -398,7 +398,7 @@ int main()
 	xpfAssert(stack->hwm() == 320);
 	stack->reset();
 	xpfAssert((stack->used() == 0) && (stack->hwm() == 0));
-	MemoryStack::destory();
+	LinearAllocator::destory();
 
 	// done sanity test.
 
@@ -407,7 +407,7 @@ int main()
 	{
 		printf("\n==== Benchmark (%s memop) ====\n", (_g_memop)? "with": "without");
 
-		size = MemoryPool::create(POOLSIZE);
+		size = BuddyAllocator::create(POOLSIZE);
 		xpfAssert(0 != size);
 		srand(seed);
 
@@ -415,7 +415,7 @@ int main()
 		test();
 		u32 timeCost1 = sw.click();
 		printf("Time cost of buddy = %u ms\n", timeCost1);
-		MemoryPool::destory();
+		BuddyAllocator::destory();
 
 		srand(seed);
 		sw.click();

@@ -30,51 +30,51 @@
 
 namespace xpf {
 
-//============---------- MemoryPool -----------================//
+//============---------- BuddyAllocator -----------================//
 
-struct MemoryPoolDetails;
+struct BuddyAllocatorDetails;
 
-class XPF_API MemoryPool
+class XPF_API BuddyAllocator
 {
 public:
 	/*****
-	 *  Initialize a global memory pool in slot of 'slotId' which pre-
-	 *  allocates a memory bulk of length of 'size'. The 'size' shall be 
-	 *  power of 2 or it will be promoted to be one (nearest but not 
+	 *  Create a buddy-algorithm based memory allocator in slot of 'slotId'
+	 *  which preallocates a memory bulk of size 'size'. The 'size' shall 
+	 *  be power of 2 or it will be promoted to be one (nearest but not 
 	 *  less than). The promoted size value should neither less than 2^4 
 	 *  (16 bytes) nor larger than 2^31 (2 Gb). Later calls of 
-	 *  MemoryPool::instance() with the same 'slotId' returns the pointer
-	 *  to this global memory pool instance. One should call MemoryPool::
-	 *  destroy() with 'slotId' after done using to release the memory
-	 *  bulk.
+	 *  BuddyAllocator::instance() with the same 'slotId' returns the 
+	 *  pointer to this global memory pool instance. One should call
+	 *  BuddyAllocator::destroy() with the same 'slotId' after done using 
+	 *  to release the entire memory bulk.
 	 *
 	 *  'slotId' should be a unsigned short integer ranged from 0 to 255.
 	 *
-	 *  Returns the promoted memory pool size. Returns 0 on error.
+	 *  Returns the promoted memory bulk size. Or 0 on error.
 	 */
 	static u32  create( u32 size, u16 slotId = 0 );
 
 	/*****
-	 *  Delete the global memory pool instance in slot of 'slotId' 
+	 *  Delete the BuddyAllocator instance in slot of 'slotId' 
 	 *  if ever created.
 	 */
 	static void destory(u16 slotId = 0);
 
 	/*****
-	 *  Return the pointer to the global accessable memory pool instance
-	 *  in given slot. Make sure the MemoryPool::create() has been called 
+	 *  Return the pointer to the BuddyAllocator instance in given slot.
+	 *  Make sure the BuddyAllocator::create() has been called 
 	 *  on the same slot otherwise it returns 0 (NULL).
 	 */
-	static MemoryPool* instance(u16 slotId = 0);
+	static BuddyAllocator* instance(u16 slotId = 0);
 
 public:
-	explicit MemoryPool ( u32 size );
-	~MemoryPool();
+	explicit BuddyAllocator(u32 size);
+	~BuddyAllocator();
 
-	// Returns the pool size in bytes.
+	// Returns the maximum capacity in bytes.
 	u32   capacity () const;
 
-	// Return the current maximum allocatable space in bytes.
+	// Return the maximum allocatable space in bytes.
 	u32   available () const;
 
 	// Return the used (allocated) space in bytes.
@@ -88,17 +88,17 @@ public:
 
 	// Allocate a memory chunk which is at least 'bytes' long.
 	// Our implementation guarantees the returned pointer is 
-	// aligned on 16-bytes boundary.
+	// 16-bytes aligned.
 	void* alloc ( u32 size );
 
-	// Free up a memory chunk which is previously allocated by this pool.
+	// Free up a memory chunk which is previously allocated by this allocator.
 	void  dealloc ( void *p, u32 size );
 
 	// dealloc() without size hint
 	void  free ( void *p );
 
 	// Extend or shrink the allocated block size.
-	// May move the memory block to a new location (whose addr will be returned).
+	// May move the memory block to a new location and returns the new address.
 	// The content of the memory block is preserved up to the lesser of the new and old sizes.
 	void* realloc ( void *p, u32 size );
 
@@ -108,36 +108,36 @@ public:
 
 private:
 	// non-copyable
-	MemoryPool ( const MemoryPool& other ) {}
-	MemoryPool& operator = ( const MemoryPool& other ) { return *this; }
+	BuddyAllocator(const BuddyAllocator& other) {}
+	BuddyAllocator& operator = (const BuddyAllocator& other) { return *this; }
 
-	MemoryPoolDetails *mDetails;
-}; // end of class MemoryPool
+	BuddyAllocatorDetails *mDetails;
+}; // end of class BuddyAllocator
 
-//============---------- MemoryPool -----------================//
-
-
+//============---------- BuddyAllocator -----------================//
 
 
 
 
 
-//============---------- MemoryStack -----------================//
+
+
+//============---------- LinearAllocator -----------================//
 
 
 
-struct MemoryStackDetails;
+struct LinearAllocatorDetails;
 
-class XPF_API MemoryStack
+class XPF_API LinearAllocator
 {
-	// NOTE: Expose the same interface as MemoryPool.
+	// NOTE: Expose the same interface as BuddyAllocator.
 public:
 	static u32  create( u32 size, u16 slotId = 0 );
 	static void destory(u16 slotId = 0);
-	static MemoryStack* instance(u16 slotId = 0);
+	static LinearAllocator* instance(u16 slotId = 0);
 
-	explicit MemoryStack ( u32 size );
-	~MemoryStack();
+	explicit LinearAllocator(u32 size);
+	~LinearAllocator();
 
 	u32   capacity () const;
 	u32   available () const;
@@ -154,15 +154,16 @@ public:
 
 private:
 	// non-copyable
-	MemoryStack ( const MemoryStack& other ) {}
-	MemoryStack& operator = ( const MemoryStack& other ) { return *this; }
+	LinearAllocator(const LinearAllocator& other) {}
+	LinearAllocator& operator = (const LinearAllocator& other) { return *this; }
 
-	MemoryStackDetails *mDetails;
-}; // end of class MemoryStack
+	LinearAllocatorDetails *mDetails;
+}; // end of class LinearAllocator
 
 
 
-//============---------- MemoryStack -----------================//
+//============---------- LinearAllocator -----------================//
+
 
 
 
@@ -173,7 +174,29 @@ private:
 
 //============---------- STL allocator compatible -----------================//
 
-template < typename T , typename ALLOCATOR, xpf::u16 SLOT = 0 >
+// A wrapper to wrap both LinearAllocator and BuddyAllocator with a 
+// specific slot index to a dedicated type for STL-compatible allocator.
+template < typename ALLOCATOR, u16 SLOT = 0 >
+class AllocInstOf
+{
+public:
+	typedef ALLOCATOR ALLOCATOR_TYPE;
+	static ALLOCATOR* get()
+	{
+		return ALLOCATOR::instance(SLOT);
+	}
+};
+
+// ALLOC_GETTER can be any type meet the following requirements:
+// 1. Has a public typedef named 'ALLOCATOR_TYPE' refer to
+//    the actual allocator type which has 3 required APIs:
+//     a. void* alloc ( u32 size );
+//     b. void  dealloc ( void *p, u32 size );
+//     c. u32   capacity () const;
+// 2. Has a public static API declared as:
+//     static ALLOCATOR* get();
+//    to return the proper allocator instance.
+template < typename T , typename ALLOC_GETTER >
 class Allocator
 {
 public:
@@ -186,12 +209,12 @@ public:
 	typedef ptrdiff_t difference_type;
 
 	template < typename U >
-	struct rebind { typedef Allocator<U, ALLOCATOR, SLOT> other; };
+	struct rebind { typedef Allocator<U, ALLOC_GETTER> other; };
 
 public:
 	Allocator ()
 	{
-		mPool = ALLOCATOR::instance(SLOT);
+		mPool = ALLOC_GETTER::get();
 	}
 
 	Allocator ( const Allocator& other )
@@ -200,7 +223,7 @@ public:
 	}
 
 	template < typename U >
-	Allocator ( const Allocator<U, ALLOCATOR, SLOT>& other )
+	Allocator ( const Allocator<U, ALLOC_GETTER>& other )
 	{
 		mPool = other.mPool;
 	}
@@ -216,7 +239,7 @@ public:
 	}
 
 	template < typename U >
-	Allocator& operator = ( const Allocator<U, ALLOCATOR, SLOT>& other )
+	Allocator& operator = (const Allocator<U, ALLOC_GETTER>& other)
 	{
 		// DO NOT exchange mPool
 	}
@@ -265,7 +288,7 @@ public:
 	}
 
 public:
-	ALLOCATOR* mPool; // weak reference to a exists memory pool instance.
+	typename ALLOC_GETTER::ALLOCATOR_TYPE* mPool; // weak reference to an existing allocator instance.
 
 }; // end of class Allocator
 

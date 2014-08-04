@@ -32,16 +32,16 @@
 
 namespace xpf {
 
-//============---------- MemoryPool -----------================//
+//============---------- BuddyAllocator -----------================//
 
-static MemoryPool* _global_pool_instances[MAXSLOT] = {0};
+static BuddyAllocator* _global_pool_instances[MAXSLOT] = { 0 };
 
 /****************************************************************************
- * A memory pool implementation based on Buddy memory allocation algorithm
+ * An implementation of Buddy memory allocation algorithm
  * http://en.wikipedia.org/wiki/Buddy_memory_allocation
  ****************************************************************************/
 
-struct MemoryPoolDetails
+struct BuddyAllocatorDetails
 {
 private:
 	struct FreeBlockRecord;
@@ -58,7 +58,7 @@ private:
 	};
 
 public:
-	explicit MemoryPoolDetails( u32 size )
+	explicit BuddyAllocatorDetails(u32 size)
 		: TierNum(1)
 		, Capacity(1 << MINSIZE_POWOF2)
 		, UsedBytes(0)
@@ -94,7 +94,7 @@ public:
 		recycle(0, 0);
 	}
 
-	~MemoryPoolDetails()
+	~BuddyAllocatorDetails()
 	{
 		::free(Chunk);
 		::free(Flags);
@@ -458,75 +458,75 @@ private:
 
 // *****************************************************************************
 
-MemoryPool::MemoryPool(u32 size)
-	: mDetails(new MemoryPoolDetails(size))
+BuddyAllocator::BuddyAllocator(u32 size)
+	: mDetails(new BuddyAllocatorDetails(size))
 {
 }
 
-MemoryPool::~MemoryPool()
+BuddyAllocator::~BuddyAllocator()
 {
 	if (mDetails)
 	{
 		delete mDetails;
-		mDetails = (MemoryPoolDetails*) 0xfefefefe;
+		mDetails = (BuddyAllocatorDetails*)0xfefefefe;
 	}
 }
 
-u32 MemoryPool::capacity() const
+u32 BuddyAllocator::capacity() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->capacity();
 }
 
-u32 MemoryPool::available() const
+u32 BuddyAllocator::available() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->available();
 }
 
-u32 MemoryPool::used() const
+u32 BuddyAllocator::used() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->usedBytes();
 }
 
-u32 MemoryPool::hwm() const
+u32 BuddyAllocator::hwm() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->hwmBytes();
 }
 
-u32 MemoryPool::reset()
+u32 BuddyAllocator::reset()
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->hwmBytes(true);
 }
 
-void* MemoryPool::alloc ( u32 size )
+void* BuddyAllocator::alloc(u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->alloc(size);
 }
 
-void MemoryPool::dealloc ( void *p, u32 size )
+void BuddyAllocator::dealloc(void *p, u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	mDetails->dealloc(p, size);
 }
 
-void MemoryPool::free ( void *p )
+void BuddyAllocator::free(void *p)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	mDetails->free(p);
 }
 
-void* MemoryPool::realloc ( void *p, u32 size )
+void* BuddyAllocator::realloc(void *p, u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->realloc(p, size);
 }
 
-void* MemoryPool::calloc ( u32 num, u32 size )
+void* BuddyAllocator::calloc(u32 num, u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	const u32 length = num * size;
@@ -540,20 +540,20 @@ void* MemoryPool::calloc ( u32 num, u32 size )
 
 
 
-//===========----- MemoryPool static members ------==============//
+//===========----- BuddyAllocator static members ------==============//
 
-u32 MemoryPool::create ( u32 size, u16 slotId )
+u32 BuddyAllocator::create(u32 size, u16 slotId)
 {
 	if ( xpfUnlikely(slotId >= MAXSLOT) )
 		return 0;
 
 	destory(slotId);
-	_global_pool_instances[slotId] = new MemoryPool(size);
+	_global_pool_instances[slotId] = new BuddyAllocator(size);
 	xpfAssert( ( "Unable to create memory bulk.", _global_pool_instances[slotId] != 0 ) );
 	return (_global_pool_instances[slotId])? _global_pool_instances[slotId]->capacity() : 0;
 }
 
-void MemoryPool::destory (u16 slotId)
+void BuddyAllocator::destory(u16 slotId)
 {
 	if ( xpfUnlikely(slotId >= MAXSLOT) )
 		return;
@@ -565,12 +565,12 @@ void MemoryPool::destory (u16 slotId)
 	}
 }
 
-MemoryPool* MemoryPool::instance (u16 slotId)
+BuddyAllocator* BuddyAllocator::instance(u16 slotId)
 {
 	return (xpfUnlikely(slotId >= MAXSLOT))? NULL: _global_pool_instances[slotId];
 }
 
-//============---------- MemoryPool -----------================//
+//============---------- BuddyAllocator -----------================//
 
 
 
@@ -587,16 +587,16 @@ MemoryPool* MemoryPool::instance (u16 slotId)
 
 
 
-//============---------- MemoryStack -----------================//
+//============---------- LinearAllocator -----------================//
 
-static MemoryStack* _global_stack_instances[MAXSLOT] = {0};
+static LinearAllocator* _global_stack_instances[MAXSLOT] = { 0 };
 
 /****************************************************************************
- * A memory stack implementation which shares similiar idea from obstack project.
+ * An allocator implementation which shares similiar idea from obstack project.
  * https://github.com/cleeus/obstack
  ****************************************************************************/
 
-struct MemoryStackDetails
+struct LinearAllocatorDetails
 {
 	struct FreeCellRecord
 	{
@@ -612,7 +612,7 @@ struct MemoryStackDetails
 	u32   HWMBytes;
 };
 
-MemoryStack::MemoryStack ( u32 size )
+LinearAllocator::LinearAllocator(u32 size)
 {
 	// This assumption shall always true for current implementation.
 	xpfSAssert( MAXSIZE_POWOF2 <= 31);
@@ -631,7 +631,7 @@ MemoryStack::MemoryStack ( u32 size )
 		size = (((size >> 3) + 1) << 3);
 	}
 
-	mDetails = new MemoryStackDetails;
+	mDetails = new LinearAllocatorDetails;
 	mDetails->Chunk = (char*) ::malloc(size);
 	mDetails->Current = 0;
 	mDetails->Previous = 0;
@@ -639,44 +639,44 @@ MemoryStack::MemoryStack ( u32 size )
 	mDetails->HWMBytes = 0;
 }
 
-MemoryStack::~MemoryStack ()
+LinearAllocator::~LinearAllocator()
 {
 	if (mDetails)
 	{
 		::free(mDetails->Chunk);
 		delete mDetails;
-		mDetails = (MemoryStackDetails*) 0xfefefefe;
+		mDetails = (LinearAllocatorDetails*)0xfefefefe;
 	}
 }
 
-u32 MemoryStack::capacity () const
+u32 LinearAllocator::capacity() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->Capacity;
 }
 
-u32 MemoryStack::available () const
+u32 LinearAllocator::available() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	const u32 size = mDetails->Capacity - mDetails->Current;
-	if (size < sizeof(MemoryStackDetails::FreeCellRecord))
+	if (size < sizeof(LinearAllocatorDetails::FreeCellRecord))
 		return 0;
-	return size - sizeof(MemoryStackDetails::FreeCellRecord);
+	return size - sizeof(LinearAllocatorDetails::FreeCellRecord);
 }
 
-u32 MemoryStack::used () const
+u32 LinearAllocator::used() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->Current;
 }
 
-u32 MemoryStack::hwm () const
+u32 LinearAllocator::hwm() const
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	return mDetails->HWMBytes;
 }
 
-u32 MemoryStack::reset()
+u32 LinearAllocator::reset()
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 
@@ -685,13 +685,13 @@ u32 MemoryStack::reset()
 	return ret;
 }
 
-void* MemoryStack::alloc (u32 size)
+void* LinearAllocator::alloc(u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 
 	// Every allocation has an internal space overhead of
 	// sizeof(MemoryStackDetails::FreeCellRecord) (8 bytes).
-	size += sizeof(MemoryStackDetails::FreeCellRecord);
+	size += sizeof(LinearAllocatorDetails::FreeCellRecord);
 
 	// Upgrade the size if it is not a multiply of 8.
 	// This can make sure every pointer we return is 8-bytes aligned.
@@ -706,8 +706,8 @@ void* MemoryStack::alloc (u32 size)
 	xpfAssert( ("Expecting Current < Capacity", mDetails->Current < mDetails->Capacity) );
 	if ( xpfLikely(mDetails->Current < mDetails->Capacity) )
 	{
-		MemoryStackDetails::FreeCellRecord *rec = 
-			(MemoryStackDetails::FreeCellRecord*)(mDetails->Chunk + mDetails->Current);
+		LinearAllocatorDetails::FreeCellRecord *rec =
+			(LinearAllocatorDetails::FreeCellRecord*)(mDetails->Chunk + mDetails->Current);
 		rec->PrevOffset = mDetails->Previous;
 		rec->CRC        = rec->PrevOffset ^ 0x5FEE1299; // as checksum of prev.
 		mDetails->Previous = mDetails->Current;
@@ -716,7 +716,7 @@ void* MemoryStack::alloc (u32 size)
 		// can be used as a flag indicates the chunk has been freed or not.
 		xpfAssert( ("Expecting PrevOffset < (1<<MAXSIZE_POWOF2)", rec->PrevOffset < (1<<MAXSIZE_POWOF2)) );
 
-		char *ret = mDetails->Chunk + mDetails->Current + sizeof(MemoryStackDetails::FreeCellRecord);
+		char *ret = mDetails->Chunk + mDetails->Current + sizeof(LinearAllocatorDetails::FreeCellRecord);
 		mDetails->Current += size;
 
 		if ( mDetails->Current > mDetails->HWMBytes )
@@ -728,25 +728,25 @@ void* MemoryStack::alloc (u32 size)
 	return NULL;
 }
 
-void MemoryStack::dealloc (void *p, u32 size)
+void LinearAllocator::dealloc(void *p, u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	XPF_NOTUSED(size);
 	free(p);
 }
 
-void MemoryStack::free (void *p)
+void LinearAllocator::free(void *p)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 
-	char *cell = (char*)p - sizeof(MemoryStackDetails::FreeCellRecord);
+	char *cell = (char*)p - sizeof(LinearAllocatorDetails::FreeCellRecord);
 
 	xpfAssert( ( "Expecting managed pointer.", ( (cell >= mDetails->Chunk) && (cell < mDetails->Chunk + mDetails->Capacity) ) ) );
 
 	if ( xpfLikely( (cell >= mDetails->Chunk) && (cell < mDetails->Chunk + mDetails->Capacity) ) )
 	{
 		// Check if data corrupted.
-		MemoryStackDetails::FreeCellRecord *rec = (MemoryStackDetails::FreeCellRecord*)cell;
+		LinearAllocatorDetails::FreeCellRecord *rec = (LinearAllocatorDetails::FreeCellRecord*)cell;
 		xpfAssert( ("Checksum matched (data corrupted)", ((rec->PrevOffset & 0x7FFFFFFF) ^ 0x5FEE1299) == rec->CRC ) );
 		xpfAssert( ("In-using cell", (0 == (rec->PrevOffset & 0x80000000))) );
 
@@ -773,7 +773,7 @@ void MemoryStack::free (void *p)
 			}
 
 			// Locate and verify the FreeCellRecord of previous cell.
-			rec = (MemoryStackDetails::FreeCellRecord*)(mDetails->Chunk + mDetails->Previous);
+			rec = (LinearAllocatorDetails::FreeCellRecord*)(mDetails->Chunk + mDetails->Previous);
 			xpfAssert( ("Checksum matched (data corrupted)", ((rec->PrevOffset & 0x7FFFFFFF) ^ 0x5FEE1299) == rec->CRC ) );
 			mDetails->Previous = (rec->PrevOffset & 0x7FFFFFFF);
 
@@ -784,7 +784,7 @@ void MemoryStack::free (void *p)
 	}
 }
 
-void* MemoryStack::realloc ( void *p, u32 size)
+void* LinearAllocator::realloc(void *p, u32 size)
 {
 	// NOTE: Using of realloc() of MemoryStack is highly
 	//       discouraged.
@@ -810,7 +810,7 @@ void* MemoryStack::realloc ( void *p, u32 size)
 	return ptr;
 }
 
-void* MemoryStack::calloc ( u32 num, u32 size )
+void* LinearAllocator::calloc(u32 num, u32 size)
 {
 	xpfAssert( ( "Null mDetails.", mDetails != 0 ) );
 	const u32 length = num * size;
@@ -823,20 +823,20 @@ void* MemoryStack::calloc ( u32 num, u32 size )
 }
 
 
-//===========----- MemoryStack static members ------==============//
+//===========----- LinearAllocator static members ------==============//
 
-u32  MemoryStack::create ( u32 size, u16 slotId )
+u32  LinearAllocator::create(u32 size, u16 slotId)
 {
 	if ( xpfUnlikely(slotId >= MAXSLOT) )
 		return 0;
 
 	destory(slotId);
-	_global_stack_instances[slotId] = new MemoryStack(size);
+	_global_stack_instances[slotId] = new LinearAllocator(size);
 	xpfAssert( ( "Unable to create memory bulk.", _global_stack_instances[slotId] != 0 ) );
 	return (_global_stack_instances[slotId])? _global_stack_instances[slotId]->capacity() : 0;
 }
 
-void MemoryStack::destory (u16 slotId)
+void LinearAllocator::destory(u16 slotId)
 {
 	if ( xpfUnlikely(slotId >= MAXSLOT) )
 		return;
@@ -848,13 +848,13 @@ void MemoryStack::destory (u16 slotId)
 	}
 }
 
-MemoryStack* MemoryStack::instance (u16 slotId)
+LinearAllocator* LinearAllocator::instance(u16 slotId)
 {
 	return (xpfUnlikely(slotId >= MAXSLOT))? NULL: _global_stack_instances[slotId];
 }
 
 
-//============---------- MemoryStack -----------================//
+//============---------- LinearAllocator -----------================//
 
 
 }; // end of namespace xpf
