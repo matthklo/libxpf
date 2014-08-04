@@ -86,11 +86,16 @@ public:
 		if ((mStatus != Thread::TRS_READY) &&
 			(WAIT_OBJECT_0 == ::WaitForSingleObject(mThreadHandle, timeoutMs)))
 		{
-			// Do not call _endthreadex() or CloseHandle() on mThreadHandle
-			// since Windows guarantees a _endthreadex() will be called after
+			// Windows guarantees a _endthreadex() will be called after
 			// the thread routine returns.
+			// However, _endthreadex() does not call CloseHandle() on the
+			// thread handler.
 			mStatus = Thread::TRS_JOINED;
-			mThreadHandle = (HANDLE)Thread::INVALID_THREAD_ID;
+			if ((HANDLE)Thread::INVALID_THREAD_ID != mThreadHandle)
+			{
+				::CloseHandle(mThreadHandle);
+				mThreadHandle = (HANDLE)Thread::INVALID_THREAD_ID;
+			}
 			return true;
 		}
 		return false;

@@ -59,6 +59,10 @@ namespace xpf
  *      done their jobs.
  */
 
+#ifdef XPF_PLATFORM_ANDROID
+#error Coroutine is not yet supported on Android platform!
+#endif
+
 /* 
  * Function prototype of the coroutine body.
  * The input argument is used as a userdata dedicated

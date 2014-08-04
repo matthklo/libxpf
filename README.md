@@ -1,9 +1,15 @@
 libxpf
 ======
 
-A light-wight, STLPort-based, cross-platform infrastructure library to help software framework developing. 
+A light-wight, cross-platform infrastructure library to help software developing. 
 
 License: zlib
+
+Planned target arch:
+
+*	x86/x64
+*	arm
+*	mips
 
 Planned target platforms:
 
@@ -16,8 +22,5 @@ Planned target platforms:
 
 Contributions from 3rd-party:
 
-- STLPort
-> http://www.stlport.org/
 - Acf Delegate
 > http://www.codeproject.com/Articles/11464/Yet-Another-C-style-Delegate-Class-in-Standard-C
-	
