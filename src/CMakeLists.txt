@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-PROJECT(libxpf CXX ASM)
+PROJECT(libxpf)
 
 FILE(GLOB EXPORTED_HEADER_FILES "${CMAKE_SOURCE_DIR}/include/xpf/*.h")
 FILE(GLOB INTERNAL_HEADER_FILES "${CMAKE_SOURCE_DIR}/src/platform/*.hpp")
@@ -16,20 +16,21 @@ INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/include")
 
 
 IF(WIN32)
-  IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x64)
+  ENABLE_LANGUAGE(ASM_MASM)
+  MESSAGE("CMAKE_CL_64 is ${CMAKE_CL_64}")
+  IF(CMAKE_CL_64)
     ADD_CUSTOM_COMMAND(OUTPUT jump_x86_64_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_ms_pe_masm.asm COMMENT "generate jump_x86_64_ms_pe_masm.obj" )
     ADD_CUSTOM_COMMAND(OUTPUT make_x86_64_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_ms_pe_masm.asm COMMENT "generate make_x86_64_ms_pe_masm.obj" )
     SET(ASM_FILES jump_x86_64_ms_pe_masm.obj make_x86_64_ms_pe_masm.obj)
-  ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86)
+  ELSE()
     ADD_CUSTOM_COMMAND(OUTPUT jump_i386_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_ms_pe_masm.asm COMMENT "generate jump_i386_ms_pe_masm.obj" )
     ADD_CUSTOM_COMMAND(OUTPUT make_i386_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_ms_pe_masm.asm COMMENT "generate make_i386_ms_pe_masm.obj" )
     SET(ASM_FILES jump_i386_ms_pe_masm.obj make_i386_ms_pe_masm.obj)
-  ELSE()
-    MESSAGE("Un-recognizable CMAKE_SYSTEM_PROCESSOR - ${CMAKE_SYSTEM_PROCESSOR}")
   ENDIF()
 ELSEIF(APPLE)
-
+  ENABLE_LANGUAGE(ASM)
 ELSE()
+  ENABLE_LANGUAGE(ASM)
   IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL i386)
     SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_sysv_elf_gas.S
                   ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_sysv_elf_gas.S)
