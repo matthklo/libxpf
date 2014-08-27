@@ -30,7 +30,7 @@ IF(WIN32)
 ELSEIF(APPLE)
 
 ELSE()
-  IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86)
+  IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL i386)
     SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_sysv_elf_gas.S
                   ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_sysv_elf_gas.S)
   ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86_64)
