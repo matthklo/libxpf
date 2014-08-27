@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-PROJECT(libxpf)
+PROJECT(libxpf CXX ASM)
 
 FILE(GLOB EXPORTED_HEADER_FILES "${CMAKE_SOURCE_DIR}/include/xpf/*.h")
 FILE(GLOB INTERNAL_HEADER_FILES "${CMAKE_SOURCE_DIR}/src/platform/*.hpp")
@@ -19,18 +19,31 @@ IF(WIN32)
   IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x64)
     ADD_CUSTOM_COMMAND(OUTPUT jump_x86_64_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_ms_pe_masm.asm COMMENT "generate jump_x86_64_ms_pe_masm.obj" )
     ADD_CUSTOM_COMMAND(OUTPUT make_x86_64_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_ms_pe_masm.asm COMMENT "generate make_x86_64_ms_pe_masm.obj" )
-    SET(ASM_OBJS jump_x86_64_ms_pe_masm.obj make_x86_64_ms_pe_masm.obj)
+    SET(ASM_FILES jump_x86_64_ms_pe_masm.obj make_x86_64_ms_pe_masm.obj)
   ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86)
     ADD_CUSTOM_COMMAND(OUTPUT jump_i386_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_ms_pe_masm.asm COMMENT "generate jump_i386_ms_pe_masm.obj" )
     ADD_CUSTOM_COMMAND(OUTPUT make_i386_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_ms_pe_masm.asm COMMENT "generate make_i386_ms_pe_masm.obj" )
-    SET(ASM_OBJS jump_i386_ms_pe_masm.obj make_i386_ms_pe_masm.obj)
+    SET(ASM_FILES jump_i386_ms_pe_masm.obj make_i386_ms_pe_masm.obj)
   ELSE()
     MESSAGE("Un-recognizable CMAKE_SYSTEM_PROCESSOR - ${CMAKE_SYSTEM_PROCESSOR}")
   ENDIF()
 ELSEIF(APPLE)
 
 ELSE()
-
+  IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86)
+    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_sysv_elf_gas.S
+                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_sysv_elf_gas.S)
+  ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86_64)
+    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_sysv_elf_gas.S
+                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_sysv_elf_gas.S)
+  ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL mips)
+    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_mips32_o32_elf_gas.S
+                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_mips32_o32_elf_gas.S)
+  ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL arm)
+    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_arm_aapcs_elf_gas.S
+                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_arm_aapcs_elf_gas.S)
+  ELSE()
+  ENDIF()
 ENDIF()
 
 
@@ -39,7 +52,7 @@ ADD_LIBRARY(xpf SHARED
   ${EXPORTED_HEADER_FILES}
   ${INTERNAL_HEADER_FILES}
   ${INTERNAL_SRC_FILES}
-  ${ASM_OBJS}
+  ${ASM_FILES}
 )
 SET_PROPERTY(TARGET xpf PROPERTY ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/lib")
 SET_PROPERTY(TARGET xpf PROPERTY RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/bin")
@@ -61,7 +74,7 @@ ADD_LIBRARY(xpf_static STATIC
   ${EXPORTED_HEADER_FILES}
   ${INTERNAL_HEADER_FILES}
   ${INTERNAL_SRC_FILES}
-  ${ASM_OBJS}
+  ${ASM_FILES}
 )
 SET_PROPERTY(TARGET xpf_static PROPERTY ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/lib")
 SET_PROPERTY(TARGET xpf_static PROPERTY APPEND_STRING PROPERTY COMPILE_DEFINITIONS XPF_BUILD_STATIC_LIBRARY)
