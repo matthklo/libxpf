@@ -21,14 +21,47 @@
 *    distribution.
 ********************************************************************************/
 
-#include <xpf/platform.h>
-
-#ifdef XPF_COROUTINE_USE_FCONTEXT
-#  include "platform/coroutine_boost_fcontext.hpp"
+#ifdef _XPF_COROUTINE_IMPL_INCLUDED_
+#error Multiple coroutine implementation files included
 #else
-#  ifdef XPF_PLATFORM_WINDOWS
-#    include "platform/coroutine_windows.hpp"
-#  else
-#    include "platform/coroutine_posix.hpp"
-#  endif
+#define _XPF_COROUTINE_IMPL_INCLUDED_
 #endif
+
+#include <xpf/fcontext.h>
+#include <xpf/coroutine.h>
+
+namespace xpf
+{
+
+vptr XPF_API InitThreadForCoroutines(vptr data)
+{
+	return 0;
+}
+
+vptr XPF_API GetCurrentCoroutine()
+{
+	return 0;
+}
+
+vptr XPF_API GetCoroutineData()
+{
+	return 0;
+}
+
+vptr XPF_API CreateCoroutine(u32 stackSize, CoroutineFunc body, vptr data)
+{
+	return 0;
+}
+
+void XPF_API SwitchToCoroutine(vptr coroutine)
+{
+	// dummy invoke
+	jump_fcontext(0,0,0);
+	make_fcontext(0,0,0);
+}
+
+void XPF_API DeleteCoroutine(vptr coroutine)
+{
+}
+
+};

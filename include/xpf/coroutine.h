@@ -59,8 +59,13 @@ namespace xpf
  *      done their jobs.
  */
 
+// Theoretically fcontext can be used on all platforms which libxpf supports.
+// For now, it is only enabled on Android platform simply because libc context
+// functions are not available. However, it should be safe to use fcontext on 
+// other platforms. To do so, force XPF_COROUTINE_USE_FCONTEXT to be defined
+// by removing the ifdef statement.
 #ifdef XPF_PLATFORM_ANDROID
-#error Coroutine is not yet supported on Android platform!
+#define XPF_COROUTINE_USE_FCONTEXT
 #endif
 
 /* 
@@ -70,10 +75,10 @@ namespace xpf
  * GetCoroutineData() to retrieve this userdata anywhere
  * while it is running.
  */
-#ifdef XPF_PLATFORM_WINDOWS
-typedef void( __stdcall *CoroutineFunc)(vptr);
+#if !defined(XPF_COROUTINE_USE_FCONTEXT) && defined(XPF_PLATFORM_WINDOWS)
+typedef void (__stdcall *CoroutineFunc) (vptr);
 #else
-typedef void(*CoroutineFunc)(vptr);
+typedef void (*CoroutineFunc) (vptr);
 #endif
 
 /*
