@@ -22,13 +22,51 @@
 ********************************************************************************/
 
 #ifdef _XPF_COROUTINE_IMPL_INCLUDED_
-#error Multiple coroutine implementation files included
+#  error Multiple coroutine implementation files included
 #else
-#define _XPF_COROUTINE_IMPL_INCLUDED_
+#  define _XPF_COROUTINE_IMPL_INCLUDED_
 #endif
 
 #include <xpf/fcontext.h>
 #include <xpf/coroutine.h>
+
+#if defined(XPF_PLATFORM_CYGWIN)
+#  error Coroutine on CYGWIN platform has not yet verified.
+#elif defined (XPF_PLATFORM_WINDOWS)
+#  if defined (XPF_CPU_X86)
+#    if defined (XPF_MODEL_64)
+#      include "fcontext_x86_64_win.hpp"
+#    else
+#      include "fcontext_i386_win.hpp"
+#    endif
+#  elif defined (XPF_CPU_ARM)
+#    include "fcontext_arm_win.hpp"
+#  else
+#    error Unsupported CPU-Arch on Windows platform.
+#  endif
+#elif defined (XPF_PLATFORM_APPLE)
+#  if defined (XPF_PLATFORM_IOSSIM)
+#    include "fcontext_i386.hpp"
+#  elif defined (XPF_PLATFORM_IOS)
+#    include "fcontext_arm_mac.hpp"
+#  elif defined (XPF_MODEL_64)
+#    include "fcontext_x86_64.hpp"
+#  else
+#    include "fcontext_i386.hpp"
+#  endif
+#else
+#  if defined (XPF_CPU_X86)
+#    if defined (XPF_MODEL_64)
+#      include "fcontext_x86_64.hpp"
+#    else
+#      include "fcontext_i386.hpp"
+#    endif
+#  elif defined (XPF_CPU_ARM)
+#    include "fcontext_arm.hpp"
+#  else
+#    error Unsupported CPU-Arch on UNIX platform.
+#  endif
+#endif
 
 namespace xpf
 {

@@ -17,7 +17,6 @@ INCLUDE_DIRECTORIES("${CMAKE_SOURCE_DIR}/include")
 
 IF(WIN32)
   ENABLE_LANGUAGE(ASM_MASM)
-  MESSAGE("CMAKE_CL_64 is ${CMAKE_CL_64}")
   IF(CMAKE_CL_64)
     ADD_CUSTOM_COMMAND(OUTPUT jump_x86_64_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_ms_pe_masm.asm COMMENT "generate jump_x86_64_ms_pe_masm.obj" )
     ADD_CUSTOM_COMMAND(OUTPUT make_x86_64_ms_pe_masm.obj COMMAND ${CMAKE_ASM_MASM_COMPILER} -c ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_ms_pe_masm.asm DEPENDS ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_ms_pe_masm.asm COMMENT "generate make_x86_64_ms_pe_masm.obj" )

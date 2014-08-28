@@ -68,6 +68,7 @@
 #  else
 #    error This is an un-supported mac platform.
 #  endif
+#  defube XPF_PLATFORM_APPLE 1
 #  define XPF_PLATFORM_BSD 1
 #  define XPF_PLATFORM_SPECIFIED 1
 #endif
@@ -208,13 +209,15 @@ xpfSAssert(4==(sizeof(wchar_t)));
 
 //==========----------==========//
 
-// Theoretically fcontext can be used on all platforms which libxpf supports.
-// For now, it is only enabled on Android platform simply because libc context
-// functions are not available. However, it should be safe to use fcontext on 
-// other platforms. To do so, force XPF_COROUTINE_USE_FCONTEXT to be defined
-// by removing the ifdef statement.
+// XPF_COROUTINE_USE_FCONTEXT controls whether xpf should use fcontext from
+// boost project to replace native context functions provided by platform.
+//
+// Theoretically fcontext should  work on all platforms which libxpf supports.
+// For now, it is only enabled on Android platform simply because there are no
+// context functions on Android. To enable fcontext on other platforms, force 
+// XPF_COROUTINE_USE_FCONTEXT to be defined by removing the ifdef statement.
 #if !defined(XPF_COROUTINE_USE_FCONTEXT) && defined(XPF_PLATFORM_ANDROID)
-#  define XPF_COROUTINE_USE_FCONTEXT
+#  define XPF_COROUTINE_USE_FCONTEXT 1
 #endif
 
 
