@@ -68,38 +68,232 @@
 #  endif
 #endif
 
+#include <pthread.h>
+#include <map>
+#include <utility>
+
+static bool _g_tls_inited = false;
+static pthread_key_t _g_tls;
+
+#define ENSURE_TLS_INIT \
+	if (!_g_tls_inited) {\
+		if (0 != pthread_key_create(&_g_tls, 0)) {\
+			xpfAssert(("Failed on pthread_key_create()", false)); \
+		}\
+		_g_tls_inited = true; \
+	}
+
+#define FCSTKSZ (8192)
+
+static void get_fcontext(xpf::vptr param)
+{
+	xpf::fcontext_t dummy;
+	xpf::fcontext_t *fc = (xpf::fcontext_t*)param;
+	xpf::jump_fcontext(&dummy, *fc, 0);
+}
+
 namespace xpf
 {
 
+struct CoroutineSlot
+{
+	fcontext_t Context;
+	void*      Data;
+	void*      StackBuffer;
+	vptr       StackSize;
+};
+
+struct CoroutineManager
+{
+	fcontext_t MainContext;
+	fcontext_t CurrentContext;
+	std::map<fcontext_t, CoroutineSlot*> Slots;
+};
+
+
 vptr XPF_API InitThreadForCoroutines(vptr data)
 {
-	return 0;
+	ENSURE_TLS_INIT;
+
+	void* p = pthread_getspecific(_g_tls);
+	if (p)
+	{
+		// has been inited.
+		CoroutineManager *mgr = (CoroutineManager*)p;
+		return (vptr)mgr->MainContext;
+	}
+
+	CoroutineSlot *slot = new CoroutineSlot;
+	slot->Data = (void*)data;
+	slot->StackBuffer = 0;
+	slot->StackSize = 0;
+
+	// For fcontext, there is no way to get current context
+	// until performing a jump_fcontext(). To get the context
+	// of the main coroutine, perform a dummy jump_fcontext().
+	fcontext_t dummy;
+	char dummy_stack[8192];
+	dummy = make_fcontext(dummy_stack, 8192, get_fcontext);
+	jump_fcontext(&slot->Context, dummy, (vptr)&slot->Context);
+
+	CoroutineManager *mgr = new CoroutineManager;
+	mgr->MainContext = mgr->CurrentContext = slot->Context;
+	mgr->Slots.insert(std::make_pair(slot->Context, slot));
+
+	if (0 != pthread_setspecific(_g_tls, mgr))
+	{
+		xpfAssert(("Failed on pthread_setspecific().", false));
+		delete slot;
+		delete mgr;
+		return 0;
+	}
+	return (vptr)mgr->MainContext;
 }
 
 vptr XPF_API GetCurrentCoroutine()
 {
+	ENSURE_TLS_INIT;
+
+	void* p = pthread_getspecific(_g_tls);
+	xpfAssert(("Calling coroutine functions from a normal thread.", (p != 0)));
+
+	if (p)
+	{
+		CoroutineManager *mgr = (CoroutineManager*)p;
+		return (vptr)mgr->CurrentContext;
+	}
+
 	return 0;
 }
 
 vptr XPF_API GetCoroutineData()
 {
+	ENSURE_TLS_INIT;
+
+	void* p = pthread_getspecific(_g_tls);
+	xpfAssert(("Calling coroutine functions from a normal thread.", (p != 0)));
+
+	if (p)
+	{
+		CoroutineManager *mgr = (CoroutineManager*)p;
+		std::map<fcontext_t, CoroutineSlot*>::iterator it = mgr->Slots.find(mgr->CurrentContext);
+		xpfAssert(("No matching slot for current context.", it != mgr->Slots.end()));
+		return (it != mgr->Slots.end()) ? (vptr)it->second->Data : 0;
+	}
+
 	return 0;
 }
 
 vptr XPF_API CreateCoroutine(u32 stackSize, CoroutineFunc body, vptr data)
 {
-	return 0;
+	ENSURE_TLS_INIT;
+
+	void* p = pthread_getspecific(_g_tls);
+	xpfAssert(("Calling coroutine functions from a normal thread.", (p != 0)));
+
+	if ((p == 0) || (body == 0))
+		return 0;
+
+	CoroutineManager *mgr = (CoroutineManager*)p;
+	CoroutineSlot *slot = new CoroutineSlot;
+	slot->Data = (void*)data;
+	// If stackSize is 0, use the default size FCSTKSZ.
+	slot->StackSize = (stackSize) ? stackSize : FCSTKSZ;
+	slot->StackBuffer = new char[slot->StackSize];
+	slot->Context = make_fcontext(slot->StackBuffer, slot->StackSize, body);
+
+	mgr->Slots.insert(std::make_pair(slot->Context, slot));
+
+	return (vptr)slot->Context;
 }
 
 void XPF_API SwitchToCoroutine(vptr coroutine)
 {
-	// dummy invoke
-	jump_fcontext(0,0,0);
-	make_fcontext(0,0,0);
+	ENSURE_TLS_INIT;
+
+	void* p = pthread_getspecific(_g_tls);
+	xpfAssert(("Calling coroutine functions from a normal thread.", (p != 0)));
+
+	if ((p == 0) || (coroutine == 0) || (coroutine == GetCurrentCoroutine()))
+		return;
+
+	CoroutineManager *mgr = (CoroutineManager*)p;
+
+	// Ensure the target coroutine has been registered.
+	std::map<fcontext_t, CoroutineSlot*>::iterator tit = mgr->Slots.find((fcontext_t)coroutine);
+	if (tit == mgr->Slots.end())
+	{
+		xpfAssert(("Switching to an un-recognized coroutine.", false));
+		return;
+	}
+
+	// Locate the record of current coroutine
+	std::map<fcontext_t, CoroutineSlot*>::iterator sit = mgr->Slots.find((fcontext_t)GetCurrentCoroutine());
+	if (sit == mgr->Slots.end())
+	{
+		xpfAssert(("Switching from an un-recognized coroutine.", false));
+		return;
+	}
+
+	mgr->CurrentContext = (fcontext_t)coroutine;
+	jump_fcontext(&sit->second->Context, mgr->CurrentContext, (vptr)tit->second->Data);
+
+	// debug aserrt
+	xpfAssert(("Current context check after swapcontext() returns.", (mgr->CurrentContext == sit->second->Context)));
 }
 
 void XPF_API DeleteCoroutine(vptr coroutine)
 {
+	ENSURE_TLS_INIT;
+
+	void* p = pthread_getspecific(_g_tls);
+	xpfAssert(("Calling coroutine functions from a normal thread.", (p != 0)));
+
+	if ((coroutine == 0) || (p == 0))
+		return;
+
+	CoroutineManager *mgr = (CoroutineManager*)p;
+	if ((coroutine != (vptr)mgr->CurrentContext) && (coroutine != (vptr)mgr->MainContext))
+	{	// Deleting a non-current and non-main coroutine.
+		std::map<fcontext_t, CoroutineSlot*>::iterator it =
+			mgr->Slots.find((fcontext_t)coroutine);
+		if (it != mgr->Slots.end())
+		{
+			CoroutineSlot *slot = it->second;
+			delete[](char*)slot->StackBuffer;
+			delete slot;
+			mgr->Slots.erase(it);
+		}
+	}
+	else
+	{	// Deleting on either the current or the main coroutine. Perform a
+		// full shutdown. Release everything and terminate current thread.
+		CoroutineSlot *currentSlot = 0;
+		for (std::map<fcontext_t, CoroutineSlot*>::iterator it = mgr->Slots.begin();
+			it != mgr->Slots.end(); ++it)
+		{
+			// Delay the destuction of current context to the last.
+			if (it->first == mgr->CurrentContext)
+			{
+				currentSlot = it->second;
+				continue;
+			}
+			delete[](char*)it->second->StackBuffer;
+			delete it->second;
+		}
+		xpfAssert(("Unable to locate current context.", (currentSlot != 0)));
+		mgr->Slots.clear();
+
+		delete mgr; mgr = 0;
+		pthread_setspecific(_g_tls, 0);
+
+		// TODO: Does deleting current context causing any problem?
+		char *sb = (char*)currentSlot->StackBuffer;
+		delete currentSlot;
+		delete[] sb;
+
+		pthread_exit(0);
+	}
 }
 
 };
