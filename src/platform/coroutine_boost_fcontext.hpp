@@ -30,6 +30,10 @@
 #include <xpf/fcontext.h>
 #include <xpf/coroutine.h>
 
+/*
+ * The plain data structure of context object which 
+ * the opaque fcontext_t pointer points to.
+ */
 #if defined(XPF_PLATFORM_CYGWIN)
 #  error Coroutine on CYGWIN platform has not yet verified.
 #elif defined (XPF_PLATFORM_WINDOWS)
@@ -85,13 +89,6 @@ static pthread_key_t _g_tls;
 
 #define FCSTKSZ (1048576)
 
-static void get_fcontext(xpf::vptr param)
-{
-	xpf::fcontext_t dummy;
-	xpf::fcontext_t *fc = (xpf::fcontext_t*)param;
-	xpf::jump_fcontext(&dummy, *fc, 0);
-}
-
 namespace xpf
 {
 
@@ -105,9 +102,9 @@ struct CoroutineSlot
 
 struct CoroutineManager
 {
-	fcontext_t MainContext;
-	fcontext_t CurrentContext;
-	std::map<fcontext_t, CoroutineSlot*> Slots;
+	void* MainContext;
+	void* CurrentContext;
+	std::map<void*, CoroutineSlot*> Slots; // stack head as key, map to slot.
 };
 
 
@@ -124,21 +121,14 @@ vptr XPF_API InitThreadForCoroutines(vptr data)
 	}
 
 	CoroutineSlot *slot = new CoroutineSlot;
+	slot->Context = 0; // not yet known until first jump_fcontext.
 	slot->Data = (void*)data;
-	slot->StackBuffer = 0;
+	slot->StackBuffer = (void*)0x42; // magic number for the main coroutine.
 	slot->StackSize = 0;
 
-	// For fcontext, there is no way to get current context
-	// until performing a jump_fcontext(). To get the context
-	// of the main coroutine, perform a dummy jump_fcontext().
-	fcontext_t dummy;
-	char dummy_stack[8192];
-	dummy = make_fcontext(dummy_stack, 8192, get_fcontext);
-	jump_fcontext(&slot->Context, dummy, (vptr)&slot->Context);
-
 	CoroutineManager *mgr = new CoroutineManager;
-	mgr->MainContext = mgr->CurrentContext = slot->Context;
-	mgr->Slots.insert(std::make_pair(slot->Context, slot));
+	mgr->MainContext = mgr->CurrentContext = slot->StackBuffer;
+	mgr->Slots.insert(std::make_pair(slot->StackBuffer, slot));
 
 	if (0 != pthread_setspecific(_g_tls, mgr))
 	{
@@ -176,7 +166,7 @@ vptr XPF_API GetCoroutineData()
 	if (p)
 	{
 		CoroutineManager *mgr = (CoroutineManager*)p;
-		std::map<fcontext_t, CoroutineSlot*>::iterator it = mgr->Slots.find(mgr->CurrentContext);
+		std::map<void*, CoroutineSlot*>::iterator it = mgr->Slots.find(mgr->CurrentContext);
 		xpfAssert(("No matching slot for current context.", it != mgr->Slots.end()));
 		return (it != mgr->Slots.end()) ? (vptr)it->second->Data : 0;
 	}
@@ -199,12 +189,13 @@ vptr XPF_API CreateCoroutine(u32 stackSize, CoroutineFunc body, vptr data)
 	slot->Data = (void*)data;
 	// If stackSize is 0, use the default size FCSTKSZ.
 	slot->StackSize = (stackSize) ? stackSize : FCSTKSZ;
-	slot->StackBuffer = new char[slot->StackSize];
-	slot->Context = make_fcontext(slot->StackBuffer, slot->StackSize, body);
+	char *stkbuf = new char[slot->StackSize];
+	slot->StackBuffer = (void*)stkbuf;
+	slot->Context = make_fcontext(&stkbuf[slot->StackSize], slot->StackSize, body);
 
-	mgr->Slots.insert(std::make_pair(slot->Context, slot));
+	mgr->Slots.insert(std::make_pair(slot->StackBuffer, slot));
 
-	return (vptr)slot->Context;
+	return (vptr)slot->StackBuffer;
 }
 
 void XPF_API SwitchToCoroutine(vptr coroutine)
@@ -220,7 +211,7 @@ void XPF_API SwitchToCoroutine(vptr coroutine)
 	CoroutineManager *mgr = (CoroutineManager*)p;
 
 	// Ensure the target coroutine has been registered.
-	std::map<fcontext_t, CoroutineSlot*>::iterator tit = mgr->Slots.find((fcontext_t)coroutine);
+	std::map<void*, CoroutineSlot*>::iterator tit = mgr->Slots.find((void*)coroutine);
 	if (tit == mgr->Slots.end())
 	{
 		xpfAssert(("Switching to an un-recognized coroutine.", false));
@@ -228,18 +219,18 @@ void XPF_API SwitchToCoroutine(vptr coroutine)
 	}
 
 	// Locate the record of current coroutine
-	std::map<fcontext_t, CoroutineSlot*>::iterator sit = mgr->Slots.find((fcontext_t)GetCurrentCoroutine());
+	std::map<void*, CoroutineSlot*>::iterator sit = mgr->Slots.find((void*)GetCurrentCoroutine());
 	if (sit == mgr->Slots.end())
 	{
 		xpfAssert(("Switching from an un-recognized coroutine.", false));
 		return;
 	}
 
-	mgr->CurrentContext = (fcontext_t)coroutine;
-	jump_fcontext(&sit->second->Context, mgr->CurrentContext, (vptr)tit->second->Data);
+	mgr->CurrentContext = (void*)coroutine;
+	jump_fcontext(&sit->second->Context, tit->second->Context, (vptr)tit->second->Data);
 
 	// debug aserrt
-	xpfAssert(("Current context check after swapcontext() returns.", (mgr->CurrentContext == sit->second->Context)));
+	xpfAssert(("Current context check after swapcontext() returns.", (mgr->CurrentContext == sit->second->StackBuffer)));
 }
 
 void XPF_API DeleteCoroutine(vptr coroutine)
@@ -255,8 +246,8 @@ void XPF_API DeleteCoroutine(vptr coroutine)
 	CoroutineManager *mgr = (CoroutineManager*)p;
 	if ((coroutine != (vptr)mgr->CurrentContext) && (coroutine != (vptr)mgr->MainContext))
 	{	// Deleting a non-current and non-main coroutine.
-		std::map<fcontext_t, CoroutineSlot*>::iterator it =
-			mgr->Slots.find((fcontext_t)coroutine);
+		std::map<void*, CoroutineSlot*>::iterator it =
+			mgr->Slots.find((void*)coroutine);
 		if (it != mgr->Slots.end())
 		{
 			CoroutineSlot *slot = it->second;
@@ -267,9 +258,9 @@ void XPF_API DeleteCoroutine(vptr coroutine)
 	}
 	else
 	{	// Deleting on either the current or the main coroutine. Perform a
-		// full shutdown. Release everything and terminate current thread.
+		// full shutdown: Release everything and terminate current thread.
 		CoroutineSlot *currentSlot = 0;
-		for (std::map<fcontext_t, CoroutineSlot*>::iterator it = mgr->Slots.begin();
+		for (std::map<void*, CoroutineSlot*>::iterator it = mgr->Slots.begin();
 			it != mgr->Slots.end(); ++it)
 		{
 			// Delay the destuction of current context to the last.
@@ -278,8 +269,10 @@ void XPF_API DeleteCoroutine(vptr coroutine)
 				currentSlot = it->second;
 				continue;
 			}
-			delete[](char*)it->second->StackBuffer;
+			char *sb = (char*)it->second->StackBuffer;
 			delete it->second;
+			if (0x42 != (vptr)sb)
+				delete[] sb;
 		}
 		xpfAssert(("Unable to locate current context.", (currentSlot != 0)));
 		mgr->Slots.clear();
@@ -290,7 +283,8 @@ void XPF_API DeleteCoroutine(vptr coroutine)
 		// TODO: Does deleting current context causing any problem?
 		char *sb = (char*)currentSlot->StackBuffer;
 		delete currentSlot;
-		delete[] sb;
+		if (0x42 != (vptr)sb)
+			delete[] sb;
 
 		pthread_exit(0);
 	}
