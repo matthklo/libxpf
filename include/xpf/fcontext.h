@@ -26,6 +26,8 @@
 
 #include "platform.h"
 
+/* Fallback context functions for some platform lacking libc context supports (ex: Android). */
+
 namespace xpf
 {
 
@@ -35,6 +37,24 @@ XPF_EXTERNC
 vptr
 jump_fcontext( fcontext_t * ofc, fcontext_t nfc,
                vptr vp, bool preserve_fpu = true );
+
+/*
+ * Input:
+ *   sp: pointer to the stack space
+ *   size: size of the stack space
+ *   fn: entry point of the fiber/coroutine
+ *
+ * Return:
+ *   An opaque pointer to the context (stored at
+ *   the top of the stack space)
+ *
+ * Please note that depending of the architecture 
+ * the stack grows either downwards or upwards.
+ * For most desktop PC, it grows upwards. So be
+ * sure to pass the *end* of allocated stack space
+ * rather than the head.
+ */
+
 XPF_EXTERNC
 fcontext_t
 make_fcontext( void * sp, vptr size, void (* fn)( vptr ) );

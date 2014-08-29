@@ -212,10 +212,10 @@ xpfSAssert(4==(sizeof(wchar_t)));
 // XPF_COROUTINE_USE_FCONTEXT controls whether xpf should use fcontext from
 // boost project to replace native context functions provided by platform.
 //
-// Theoretically fcontext should  work on all platforms which support pthread.
+// Theoretically fcontext should work on all POSIX platforms (with pthread).
 // For now, it is only enabled on Android platform simply because there are no
-// native context functions on it. To enable fcontext on other platforms, force 
-// XPF_COROUTINE_USE_FCONTEXT to be defined by removing the ifdef statement.
+// native context functions on it. To enable fcontext on other POSIX platforms,
+// remove the ifdef statement to force XPF_COROUTINE_USE_FCONTEXT to be defined.
 #if !defined(XPF_COROUTINE_USE_FCONTEXT) && defined(XPF_PLATFORM_ANDROID)
 #  define XPF_COROUTINE_USE_FCONTEXT 1
 #endif

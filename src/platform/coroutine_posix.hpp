@@ -57,6 +57,8 @@ static pthread_key_t _g_tls;
 		_g_tls_inited = true; \
 	}
 
+#define FCSTKSZ (1048576)
+
 namespace xpf
 {
 
@@ -166,8 +168,8 @@ vptr XPF_API CreateCoroutine(u32 stackSize, CoroutineFunc body, vptr data)
 		return 0;
 	}
 	slot->Data = (void*)data;
-	// If stackSize is 0, use the default size SIGSTKSZ.
-	slot->StackSize = (stackSize) ? stackSize : SIGSTKSZ;
+	// If stackSize is 0, use the default size FCSTKSZ.
+	slot->StackSize = (stackSize) ? stackSize : FCSTKSZ;
 	slot->StackBuffer = new char[slot->StackSize];
 
 	slot->Context.uc_stack.ss_sp = slot->StackBuffer;

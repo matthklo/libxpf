@@ -22,19 +22,28 @@ void f2(xpf::vptr p)
 
 int main()
 {
-    std::size_t size(8192);
+	// Note: std::cout may refuse to work for a
+	//       small stack size (ex: 8192).
+    std::size_t size(1024*1024); // Use 1mb
     char* sp1 = new char[size];
     char* sp2 = new char[size];
 
 	std::cout << "main: preparing fcontext..." << std::endl;
-    fc1= xpf::make_fcontext(sp1, size, f1);
-    fc2= xpf::make_fcontext(sp2, size, f2);
+
+	// Note: make_fcontext() uses the stack space (passed as
+	//       the 1st param) as the native architecture does:
+	//       it grows either from the top of the stack 
+	//       (downwards) or the bottom of the stack (upwards).
+	//       For this testcase, we assume grows upwards.
+	fc1 = xpf::make_fcontext(&sp1[size], size, f1);
+	fc2 = xpf::make_fcontext(&sp2[size], size, f2);
 
     std::cout<<"main: call jump_fcontext( & fcm, fc1, 0)"<<std::endl;
     xpf::jump_fcontext(&fcm,fc1,0);
 
     delete[] sp1;
     delete[] sp2;
+	std::cout << "main: done" << std::endl;
     return 0;
 }
 

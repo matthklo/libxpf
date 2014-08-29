@@ -83,7 +83,7 @@ static pthread_key_t _g_tls;
 		_g_tls_inited = true; \
 	}
 
-#define FCSTKSZ (8192)
+#define FCSTKSZ (1048576)
 
 static void get_fcontext(xpf::vptr param)
 {
