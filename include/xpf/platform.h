@@ -68,7 +68,7 @@
 #  else
 #    error This is an un-supported mac platform.
 #  endif
-#  defube XPF_PLATFORM_APPLE 1
+#  define XPF_PLATFORM_APPLE 1
 #  define XPF_PLATFORM_BSD 1
 #  define XPF_PLATFORM_SPECIFIED 1
 #endif

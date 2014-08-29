@@ -28,6 +28,8 @@ IF(WIN32)
   ENDIF()
 ELSEIF(APPLE)
   ENABLE_LANGUAGE(ASM)
+  SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_sysv_macho_gas.S
+                ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_sysv_macho_gas.S)
 ELSE()
   ENABLE_LANGUAGE(ASM)
   IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL i386)
