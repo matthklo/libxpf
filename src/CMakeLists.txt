@@ -32,10 +32,7 @@ ELSEIF(APPLE)
                 ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_sysv_macho_gas.S)
 ELSE()
   ENABLE_LANGUAGE(ASM)
-  IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL i386)
-    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_sysv_elf_gas.S
-                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_sysv_elf_gas.S)
-  ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86_64)
+  IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86_64)
     SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_sysv_elf_gas.S
                   ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_sysv_elf_gas.S)
   ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL mips)
@@ -45,6 +42,8 @@ ELSE()
     SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_arm_aapcs_elf_gas.S
                   ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_arm_aapcs_elf_gas.S)
   ELSE()
+    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_i386_sysv_elf_gas.S
+                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_i386_sysv_elf_gas.S)
   ENDIF()
 ENDIF()
 
