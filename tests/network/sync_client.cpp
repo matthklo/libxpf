@@ -63,7 +63,7 @@ u32 TestSyncClient::run(u64 udata)
 
 	bool ret = false;
 	u32 ec = 0;
-	ret = mEndpoint->connect("localhost", 50123, &ec);
+	ret = mEndpoint->connect("localhost", "50123", &ec);
 
 	if (!ret)
 	{

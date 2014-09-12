@@ -44,7 +44,7 @@ TestSyncServer::TestSyncServer()
 	, mAccepting(true)
 {
 	u32 ec = 0;
-	mEndpoint = NetEndpoint::create(NetEndpoint::ProtocolIPv4 | NetEndpoint::ProtocolTCP, "localhost", 50123, &ec);
+	mEndpoint = NetEndpoint::create(NetEndpoint::ProtocolIPv4 | NetEndpoint::ProtocolTCP, "localhost", "50123", &ec);
 	xpfAssert(("Failed on creating server endpoint.", mEndpoint != 0));
 }
 

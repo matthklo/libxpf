@@ -41,6 +41,7 @@ namespace xpf
 NetIoMux::NetIoMux()
 {
 	pImpl = new NetIoMuxImpl();
+	pDefaultMuxCallback = 0;
 }
 
 NetIoMux::~NetIoMux()
@@ -69,32 +70,38 @@ NetIoMux::ERunningStaus NetIoMux::runOnce(u32 timeoutMs)
 
 void NetIoMux::asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 {
-	pImpl->asyncRecv(ep, buf, buflen, cb);
+	pImpl->asyncRecv(ep, buf, buflen, cb ? cb : pDefaultMuxCallback);
 }
 
 void NetIoMux::asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 {
-	pImpl->asyncRecvFrom(ep, buf, buflen, cb);
+	pImpl->asyncRecvFrom(ep, buf, buflen, cb ? cb : pDefaultMuxCallback);
 }
 
 void NetIoMux::asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 {
-	pImpl->asyncSend(ep, buf, buflen, cb);
+	pImpl->asyncSend(ep, buf, buflen, cb ? cb : pDefaultMuxCallback);
 }
 
 void NetIoMux::asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 {
-	pImpl->asyncSendTo(ep, peer, buf, buflen, cb);
+	pImpl->asyncSendTo(ep, peer, buf, buflen, cb ? cb : pDefaultMuxCallback);
 }
 
 void NetIoMux::asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb)
 {
-	pImpl->asyncAccept(ep, cb);
+	pImpl->asyncAccept(ep, cb ? cb : pDefaultMuxCallback);
+}
+
+void NetIoMux::asyncConnect(NetEndpoint *ep, const c8 *host, const c8 *serviceOrPort, NetIoMuxCallback *cb)
+{
+	pImpl->asyncConnect(ep, host, serviceOrPort, cb ? cb : pDefaultMuxCallback);
 }
 
 void NetIoMux::asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb)
 {
-	pImpl->asyncConnect(ep, host, port, cb);
+	string portStr = lexical_cast<c8>(port);
+	pImpl->asyncConnect(ep, host, portStr.c_str(), cb ? cb : pDefaultMuxCallback);
 }
 
 bool NetIoMux::join(NetEndpoint *ep)

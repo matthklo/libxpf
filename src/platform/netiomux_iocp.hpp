@@ -361,7 +361,7 @@ public:
 		}
 	}
 
-	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb)
+	void asyncConnect(NetEndpoint *ep, const c8 *host, const c8 *serviceOrPort, NetIoMuxCallback *cb)
 	{
 		const NetIoMux::EIoType iotype = NetIoMux::EIT_CONNECT;
 
@@ -380,7 +380,7 @@ public:
 		//       Should we just take NetEndpoint::Peer as input and require
 		//       the outsider to do the addr-resolving?
 		NetEndpoint::Peer peer;
-		if (!NetEndpoint::resolvePeer(ep->getProtocol(), peer, host, 0, port))
+		if (!NetEndpoint::resolvePeer(ep->getProtocol(), peer, host, serviceOrPort))
 		{
 			cb->onIoCompleted(iotype, NetEndpoint::EE_RESOLVE, ep, 0, 0, 0);
 			return;

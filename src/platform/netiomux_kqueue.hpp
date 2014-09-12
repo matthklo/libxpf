@@ -436,7 +436,7 @@ namespace xpf
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
 		}
 
-		void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb)
+		void asyncConnect(NetEndpoint *ep, const c8 *host, const c8 *serviceOrPort, NetIoMuxCallback *cb)
 		{
 			const NetIoMux::EIoType iotype = NetIoMux::EIT_CONNECT;
 
@@ -450,7 +450,7 @@ namespace xpf
 
 			// Note: resolving can be blockable.
 			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
-			if (!NetEndpoint::resolvePeer(ep->getProtocol(), *peer, host, 0, port))
+			if (!NetEndpoint::resolvePeer(ep->getProtocol(), *peer, host, serviceOrPort))
 			{
 				cb->onIoCompleted(iotype, NetEndpoint::EE_RESOLVE, ep, 0, 0, 0);
 				return;

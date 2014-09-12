@@ -117,14 +117,13 @@ public:
 		Status = status;
 		Socket = socket;
 
-		socklen_t addrlen = XPF_NETENDPOINT_MAXADDRLEN;
-		int ec = ::getsockname(socket, (struct sockaddr*)&SockAddr, &addrlen);
-		xpfAssert( ("Valid socket provisioning.", (ec == 0) && (addrlen < XPF_NETENDPOINT_MAXADDRLEN)) );
+		int ec = ::getsockname(socket, (struct sockaddr*)SockInfo.Data, &SockInfo.Length);
+		xpfAssert( ("Valid socket provisioning.", (ec == 0) && (SockInfo.Length < XPF_NETENDPOINT_MAXADDRLEN)) );
 
 		if (ec == 0)
 		{
 			c8 servbuf[128];
-			ec = ::getnameinfo((struct sockaddr*)&SockAddr, addrlen,
+			ec = ::getnameinfo((struct sockaddr*)SockInfo.Data, (socklen_t) SockInfo.Length,
 					Address, XPF_NETENDPOINT_MAXADDRLEN, servbuf, 128,
 					NI_NUMERICHOST | NI_NUMERICSERV);
 			if (ec == 0)
@@ -144,7 +143,7 @@ public:
 		close();
 	}
 
-	bool connect(const c8 *addr, u32 port, u32 *errorcode)
+	bool connect(const c8 *addr, const c8 *serviceOrPort, u32 *errorcode)
 	{
 		bool ret = false;
 
@@ -152,7 +151,7 @@ public:
 			addr = "localhost";
 
 		xpfAssert(("Stale endpoint.", NetEndpoint::ESTAT_INIT == Status));
-		if ((0 == port) || (NetEndpoint::ESTAT_INIT != Status))
+		if ((0 == serviceOrPort) || (NetEndpoint::ESTAT_INIT != Status))
 		{
 			if (errorcode)
 				*errorcode = (u32)NetEndpoint::EE_INVALID_OP;
@@ -160,7 +159,7 @@ public:
 		}
 
 		NetEndpoint::Peer peer;
-		if (!NetEndpoint::resolvePeer(Protocol, peer, addr, 0, port))
+		if (!NetEndpoint::resolvePeer(Protocol, peer, addr, serviceOrPort))
 		{
 			if (errorcode)
 				*errorcode = (u32)NetEndpoint::EE_RESOLVE;
@@ -180,14 +179,15 @@ public:
 				break;
 			}
 
-			std::memcpy(SockAddr, peer.Data, peer.Length);
+			std::memcpy(SockInfo.Data, peer.Data, peer.Length);
+			SockInfo.Length = peer.Length;
 
 			ret = true;
 			Status = NetEndpoint::ESTAT_CONNECTED;
-			Port = port;
 
+			c8 servbuf[128];
 			ec = ::getnameinfo((const sockaddr*)peer.Data, peer.Length, Address, XPF_NETENDPOINT_MAXADDRLEN,
-					0, 0, NI_NUMERICHOST);
+					servbuf, 128, NI_NUMERICHOST | NI_NUMERICSERV);
 			if (0 != ec)
 			{
 				saveLastError();
@@ -198,6 +198,11 @@ public:
 					if (addr[i] == '\0')
 						break;
 				}
+				Port = 0;
+			}
+			else
+			{
+				Port = lexical_cast<u32, c8>(&servbuf[0]);
 			}
 
 		} while (0);
@@ -208,19 +213,17 @@ public:
 	}
 
 	// TCP: do bind() and listen(). UDP: do bind().
-	bool listen (const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+	bool listen (const c8 *addr, const c8 *serviceOrPort, u32 *errorcode, u32 backlog)
 	{
 		bool ret = false;
 
 		xpfAssert(("Stale endpoint.", NetEndpoint::ESTAT_INIT == Status));
-		if ((NetEndpoint::ESTAT_INIT != Status) || (0 == port))
+		if ((NetEndpoint::ESTAT_INIT != Status) || (0 == serviceOrPort))
 		{
 			if (errorcode)
 				*errorcode = (u32)NetEndpoint::EE_INVALID_OP;
 			return false;
 		}
-
-		string portStr = lexical_cast<c8>(port);
 
 		// perform getaddrinfo() to prepare proper sockaddr data.
 		struct addrinfo hint = {0};
@@ -235,7 +238,7 @@ public:
 		if (AF_INET6 == hint.ai_family)
 			hint.ai_flags |= AI_V4MAPPED;
 
-		int ec = ::getaddrinfo(addr, portStr.c_str(), &hint, &results);
+		int ec = ::getaddrinfo(addr, serviceOrPort, &hint, &results);
 		if (0 != ec)
 		{
 			if (errorcode)
@@ -270,6 +273,29 @@ public:
 					saveLastError();
 					break;
 				}
+			}
+
+			std::memcpy(SockInfo.Data, results->ai_addr, results->ai_addrlen);
+			SockInfo.Length = (s32) results->ai_addrlen;
+
+			c8 servbuf[128];
+			ec = ::getnameinfo((const sockaddr*)results->ai_addr, results->ai_addrlen, Address, XPF_NETENDPOINT_MAXADDRLEN,
+					servbuf, 128, NI_NUMERICHOST | NI_NUMERICSERV);
+			if (0 != ec)
+			{
+				saveLastError();
+				xpfAssert( ("Expecting getnameinfo succeed after listen.", false) );
+				for (int i=0; i<XPF_NETENDPOINT_MAXADDRLEN; ++i)
+				{
+					Address[i] = addr[i];
+					if (addr[i] == '\0')
+						break;
+				}
+				Port = 0;
+			}
+			else
+			{
+				Port = lexical_cast<u32, c8>(&servbuf[0]);
 			}
 
 			Status = NetEndpoint::ESTAT_LISTENING;
@@ -490,10 +516,11 @@ public:
 		Socket = INVALID_SOCKET;
 		Errno = 0;
 
+		SockInfo.Length = 0;
 		for (int i=0; i<XPF_NETENDPOINT_MAXADDRLEN; ++i)
 		{
 			Address[i] = 0;
-			SockAddr[i] = 0;
+			SockInfo.Data[i] = 0;
 		}
 	}
 
@@ -535,7 +562,7 @@ public:
 	}
 
 	c8                    Address[XPF_NETENDPOINT_MAXADDRLEN]; // Always in numeric form.
-	c8                    SockAddr[XPF_NETENDPOINT_MAXADDRLEN];
+	NetEndpoint::Peer     SockInfo;
 	u32                   Port;
 	const u32             Protocol;
 	NetEndpoint::EStatus  Status;
@@ -581,10 +608,10 @@ NetEndpoint* NetEndpoint::create(u32 protocol)
 	return new NetEndpoint(protocol);
 }
 
-NetEndpoint* NetEndpoint::create(u32 protocol, const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+NetEndpoint* NetEndpoint::create(u32 protocol, const c8 *addr, const c8 *serviceOrPort, u32 *errorcode, u32 backlog)
 {
 	NetEndpoint *ret = new NetEndpoint(protocol);
-	if (!ret || !ret->listen(addr, port, errorcode, backlog))
+	if (!ret || !ret->listen(addr, serviceOrPort, errorcode, backlog))
 	{
 		delete ret;
 		return 0;
@@ -597,23 +624,15 @@ void NetEndpoint::release(NetEndpoint *ep)
 	delete ep;
 }
 
-bool NetEndpoint::resolvePeer(u32 protocol, NetEndpoint::Peer &peer, const c8 * host, const c8 * serv, u32 port)
+bool NetEndpoint::resolvePeer(u32 protocol, NetEndpoint::Peer &peer, const c8 * host, const c8 * serviceOrPort)
 {
-	string portStr;
-
-	if (serv == NULL)
-	{
-		portStr = lexical_cast<c8>(port);
-		serv = portStr.c_str();
-	}
-
 	struct addrinfo hint = { 0 };
 	struct addrinfo *results;
 	hint.ai_family = (protocol & NetEndpoint::ProtocolIPv6) ? AF_INET6 : AF_INET;
 	hint.ai_socktype = (protocol & NetEndpoint::ProtocolTCP) ? SOCK_STREAM : SOCK_DGRAM;
 	hint.ai_protocol = (protocol & NetEndpoint::ProtocolTCP) ? IPPROTO_TCP : IPPROTO_UDP;
 	hint.ai_flags = (AF_INET6 == hint.ai_family) ? AI_V4MAPPED : 0;
-	int ec = ::getaddrinfo(host, portStr.c_str(), &hint, &results);
+	int ec = ::getaddrinfo(host, serviceOrPort, &hint, &results);
 	if (0 != ec)
 	{
 		return false;
@@ -630,14 +649,14 @@ bool NetEndpoint::platformInit()
 	return NetEndpointImpl::platformInit();
 }
 
-bool NetEndpoint::connect(const c8 *addr, u32 port, u32 *errorcode)
+bool NetEndpoint::connect(const c8 *addr, const c8 *serviceOrPort, u32 *errorcode)
 {
-	return pImpl->connect(addr, port, errorcode);
+	return pImpl->connect(addr, serviceOrPort, errorcode);
 }
 
-bool NetEndpoint::listen (const c8 *addr, u32 port, u32 *errorcode, u32 backlog)
+bool NetEndpoint::listen (const c8 *addr, const c8 *serviceOrPort, u32 *errorcode, u32 backlog)
 {
-	return pImpl->listen(addr, port, errorcode, backlog);
+	return pImpl->listen(addr, serviceOrPort, errorcode, backlog);
 }
 
 NetEndpoint* NetEndpoint::accept (u32 *errorcode)

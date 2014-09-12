@@ -76,16 +76,21 @@ public:
 	ERunningStaus runOnce(u32 timeoutMs = 0xffffffff);
 
 	// For I/O control
-	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb);
-	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb);
-	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb);
-	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb);
-	void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb);
-	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb);
+	void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb = 0);
+	void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb = 0);
+	void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb = 0);
+	void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb = 0);
+	void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb = 0);
+	void asyncConnect(NetEndpoint *ep, const c8 *host, const c8 *serviceOrPort, NetIoMuxCallback *cb = 0);
+	void asyncConnect(NetEndpoint *ep, const c8 *host, u32 port, NetIoMuxCallback *cb = 0); // A varient asyncConnect() which takes a numeric port number. 
 
 	// Join/depart the endpoint to/from netiomux.
 	bool join(NetEndpoint *ep);
 	bool depart(NetEndpoint *ep);
+
+	// Default callback setter/getter
+	inline void setDefaultCallback(NetIoMuxCallback *cb) { pDefaultMuxCallback = cb; }
+	inline NetIoMuxCallback* getDefaultCallback() const { return pDefaultMuxCallback; }
 
 	static const char * getMultiplexerType(EPlatformMultiplexer &epm);
 
@@ -94,6 +99,7 @@ private:
 	NetIoMux(const NetIoMux& that) {}
 	NetIoMux& operator = (const NetIoMux& that) { return *this; }
 
+	NetIoMuxCallback *pDefaultMuxCallback;
 	NetIoMuxImpl *pImpl;
 };
 
