@@ -1,7 +1,10 @@
-/********
- * Benefited from project ACF:
+/******** Disclaimer
+ *
+ * The following code pieces are extracted from a third party open source project which
+ * I have no claim on.
+ *
+ * Project ACF:
  *    http://www.codeproject.com/Articles/11464/Yet-Another-C-style-Delegate-Class-in-Standard-C
- * 
  * A non thread-safe, header only, delegate implementation.
  *
  ********/
