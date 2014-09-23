@@ -110,7 +110,8 @@ public:
 		}
 
 		NetEndpoint *ep = (NetEndpoint*)key;
-		ret = ::GetOverlappedResult((HANDLE)ep->getSocket(), odata, &bytes, FALSE);
+		DWORD flags;
+		ret = ::WSAGetOverlappedResult(ep->getSocket(), odata, &bytes, TRUE, &flags);
 
 		NetEndpoint::EStatus st = ep->getStatus();
 		NetIoMuxCallback *cb = odata->Callback;
