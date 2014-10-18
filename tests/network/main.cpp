@@ -76,7 +76,7 @@ int test_sync()
 			}
 		}
 
-		xpf::u32 remains = clients.size();
+		xpf::u32 remains = (xpf::u32)clients.size();
 		if ((remains != 0) && ((remains % 10) == 0))
 		{
 			printf("%u remaining sync clients ...\n", remains);
