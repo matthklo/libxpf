@@ -64,7 +64,7 @@ static void xgetopt_permute(s32 argc, c8 * const argv[],
 	}
 	else
 	{
-		s32 len = strlen(optstring);
+		s32 len = (s32)strlen(optstring);
 		pstr = (c8*)malloc(len+2);
 		memset(pstr, 0, len+2);
 		while (((*optstring) == '+') || ((*optstring) == '-'))
@@ -271,7 +271,7 @@ static s32 xgetopt_impl(s32 argc, c8 * const argv[],
 
 			const c8 *r;
 			r = strchr(p, '=');
-			s32 plen = (r)? (r-p) : strlen(p);
+			s32 plen = (r)? (s32)(r-p) : (s32)strlen(p);
 
 			const xoption *xo = 0;
 			s32 hitcnt = 0;
@@ -317,7 +317,7 @@ static s32 xgetopt_impl(s32 argc, c8 * const argv[],
 			}
 
 			if (longindex)
-				*longindex = (xo - longopts);
+				*longindex = (s32)(xo - longopts);
 
 			switch (xo->has_arg)
 			{

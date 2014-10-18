@@ -990,7 +990,7 @@ public:
 
 		}
 		va_end(ap);
-		return base_type::size();
+		return (u32)base_type::size();
 	}
 
 	// simple hash algorithm referenced from xerces-c project.

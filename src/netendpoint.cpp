@@ -640,7 +640,7 @@ bool NetEndpoint::resolvePeer(u32 protocol, NetEndpoint::Peer &peer, const c8 * 
 	}
 
 	std::memcpy(peer.Data, results->ai_addr, results->ai_addrlen);
-	peer.Length = results->ai_addrlen;
+	peer.Length = (s32)results->ai_addrlen;
 	::freeaddrinfo(results);
 	return true;
 }

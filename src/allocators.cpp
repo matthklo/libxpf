@@ -235,7 +235,7 @@ private:
 		if (NULL != fbr)
 		{
 			const u32 blockSize = blockSizeOf(tier);
-			const u32 blockId = ((char*)fbr - Chunk)/blockSize;
+			const u32 blockId = ((u32)((char*)fbr - Chunk))/blockSize;
 
 			FreeChainHead[tier] = fbr->Next;
 			if (fbr->Next)
@@ -763,7 +763,7 @@ void LinearAllocator::free(void *p)
 		// the next top-most cell which is still alive.
 		while (true)
 		{
-			mDetails->Current = ((char*)rec - mDetails->Chunk);
+			mDetails->Current = (u32)((char*)rec - mDetails->Chunk);
 
 			// Quit the loop if hit the bottom of stack (all cells have been freed).
 			if ( xpfUnlikely ( 0 == mDetails->Current ) )
