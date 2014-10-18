@@ -161,6 +161,9 @@ public:
 
 					ep->setStatus(NetEndpoint::ESTAT_ACCEPTING);
 
+					resetOverlapped(odata);
+					odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+
 					DWORD bytes = 0;
 					const int addrlen = (proto & NetEndpoint::ProtocolIPv4) 
 						? sizeof(sockaddr_in) +16 
@@ -171,8 +174,7 @@ public:
 
 					if ((TRUE == result) || (ERROR_IO_PENDING == WSAGetLastError()))
 					{
-						deleteOverlapped = false;
-						odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+						deleteOverlapped = false;						
 					}
 					else // error
 					{
@@ -260,6 +262,9 @@ public:
 
 					ep->setStatus(NetEndpoint::ESTAT_CONNECTING);
 
+					resetOverlapped(odata);
+					odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+
 					// After socket has ensured to be bound, we can finally calls ConnectEx.
 					BOOL result = ctx->pConnectEx(ep->getSocket(), 
 						(const sockaddr*)peer.Data, peer.Length,
@@ -268,7 +273,6 @@ public:
 					if ((TRUE == result) || (ERROR_IO_PENDING == WSAGetLastError()))
 					{
 						deleteOverlapped = false;
-						odata->Flags |= IOMUX_OVERLAPPED_FIRED;
 					}
 					else // error
 					{
@@ -307,13 +311,15 @@ public:
 						break;
 					}
 
+					resetOverlapped(odata);
+					odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+
 					DWORD dummy = 0; // currently not used.
 					int ec = WSARecv(ep->getSocket(), &odata->Buffer, 1, 0, &dummy,
 						(LPWSAOVERLAPPED)odata, 0);
 					if ((0 == ec) || (ERROR_IO_PENDING == WSAGetLastError()))
 					{
 						deleteOverlapped = false;
-						odata->Flags |= IOMUX_OVERLAPPED_FIRED;
 					}
 					else // error
 					{
@@ -341,6 +347,9 @@ public:
 						break;
 					}
 
+					resetOverlapped(odata);
+					odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+
 					DWORD flags = 0;
 					int ec = WSARecvFrom(ep->getSocket(), &odata->Buffer, 1, 0, &flags, 
 						(sockaddr*)odata->PeerData.Data, &odata->PeerData.Length, 
@@ -348,7 +357,6 @@ public:
 					if ((0 == ec) || (ERROR_IO_PENDING == WSAGetLastError()))
 					{
 						deleteOverlapped = false;
-						odata->Flags |= IOMUX_OVERLAPPED_FIRED;
 					}
 					else // error
 					{
@@ -376,12 +384,14 @@ public:
 						break;
 					}
 
+					resetOverlapped(odata);
+					odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+
 					int ec = WSASend(ep->getSocket(), &odata->Buffer, 1, 0, 0, 
 						(LPWSAOVERLAPPED)odata, 0);
 					if ((0 == ec) || (ERROR_IO_PENDING == WSAGetLastError()))
 					{
 						deleteOverlapped = false;
-						odata->Flags |= IOMUX_OVERLAPPED_FIRED;
 					}
 					else // error
 					{
@@ -410,6 +420,9 @@ public:
 						break;
 					}
 
+					resetOverlapped(odata);
+					odata->Flags |= IOMUX_OVERLAPPED_FIRED;
+
 					const u32 proto = ep->getProtocol();
 					int ec = WSASendTo(ep->getSocket(), &odata->Buffer, 1, 0, 0,
 						(const sockaddr*)odata->PeerData.Data, odata->PeerData.Length, 
@@ -417,7 +430,6 @@ public:
 					if ((0 == ec) || (ERROR_IO_PENDING == WSAGetLastError()))
 					{
 						deleteOverlapped = false;
-						odata->Flags |= IOMUX_OVERLAPPED_FIRED;
 					}
 					else // error
 					{
@@ -599,6 +611,12 @@ public:
 	void recycleOverlapped(NetIoMuxOverlapped *data)
 	{
 		delete data;
+	}
+
+	void resetOverlapped(NetIoMuxOverlapped *data)
+	{
+		// Reset the first part of NetIoMuxOverlapped (the legacy OVERLAPPED content) to be all 0.
+		::memset(data, 0, sizeof(OVERLAPPED));
 	}
 
 	static const char * getMultiplexerType(NetIoMux::EPlatformMultiplexer &epm)
