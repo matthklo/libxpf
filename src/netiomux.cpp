@@ -22,6 +22,8 @@
  ********************************************************************************/ 
 
 #include <xpf/netiomux.h>
+#include <xpf/string.h>
+#include <xpf/lexicalcast.h>
 
 #if defined(XPF_PLATFORM_WINDOWS)
 #  include "platform/netiomux_iocp.hpp"

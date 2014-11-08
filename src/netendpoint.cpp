@@ -118,7 +118,7 @@ public:
 		Socket = socket;
 
 		SockInfo.Length = XPF_NETENDPOINT_MAXADDRLEN;
-		int ec = ::getsockname(socket, (struct sockaddr*)SockInfo.Data, &SockInfo.Length);
+		int ec = ::getsockname(socket, (struct sockaddr*)SockInfo.Data, (socklen_t*)&SockInfo.Length);
 		xpfAssert( ("Valid socket provisioning.", (ec == 0) && (SockInfo.Length < XPF_NETENDPOINT_MAXADDRLEN)) );
 
 		if (ec == 0)

@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define MAX_EVENTS_AT_ONCE (128)
@@ -678,7 +679,7 @@ namespace xpf
 					{
 						completed = false;
 					}
-				} while (0)
+				} while (0);
 				break;
 
 			case NetIoMux::EIT_CONNECT:
