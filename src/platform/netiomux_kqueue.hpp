@@ -37,6 +37,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define MAX_EVENTS_AT_ONCE (128)
 #define MAX_READY_LIST_LEN (10240)
@@ -46,12 +48,31 @@
 
 namespace xpf
 {
+	// host info for connect
+	struct ConnectHostInfo
+	{
+		ConnectHostInfo(const c8 *h, const c8 *s)
+		{
+			host = ::strdup(h);
+			service = ::strdup(s);
+		}
+
+		~ConnectHostInfo()
+		{
+			if (host) ::free(host);
+			if (service) ::free(service);
+		}
+
+		c8 *host;
+		c8 *service;
+	};
 
 	// data record per operation
 	struct Overlapped
 	{
 		Overlapped(NetEndpoint *ep, NetIoMux::EIoType iocode)
-			: iotype(iocode), sep(ep), tep(0), buffer(0), length(0), peer(0), cb(0), errorcode(0) {}
+			: iotype(iocode), sep(ep), tep(0), buffer(0), length(0)
+			, peer(0), cb(0), errorcode(0), provisioned(false) {}
 
 		NetIoMux::EIoType iotype;
 		NetEndpoint *sep;
@@ -61,6 +82,7 @@ namespace xpf
 		NetEndpoint::Peer *peer;
 		NetIoMuxCallback *cb;
 		int errorcode;
+		bool provisioned;
 	};
 
 	// data record per socket
@@ -68,9 +90,9 @@ namespace xpf
 	{
 		std::deque<Overlapped*>  rdqueue; // queued read operations
 		std::deque<Overlapped*>  wrqueue; // queued write operations
-		bool                          ready;
-		ThreadLock                    lock;
-		NetEndpoint                  *ep;
+		bool                     ready;
+		ThreadLock               lock;
+		NetEndpoint             *ep;
 	};
 
 	class NetIoMuxImpl
@@ -123,39 +145,52 @@ namespace xpf
 				switch (co->iotype)
 				{
 				case NetIoMux::EIT_RECV:
-					if (co->errorcode == 0)
+					if (!co->provisioned)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_INVALID_OP, co->sep, 0, co->buffer, 0);
+					else if (co->errorcode == 0)
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SUCCESS, co->sep, 0, co->buffer, co->length);
 					else
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_RECV, co->sep, 0, co->buffer, 0);
 					break;
 				case NetIoMux::EIT_RECVFROM:
-					if (co->errorcode == 0)
+					if (!co->provisioned)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_INVALID_OP, co->sep, 0, co->buffer, 0);
+					else if (co->errorcode == 0)
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SUCCESS, co->sep, (vptr)co->peer, co->buffer, co->length);
 					else
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_RECV, co->sep, 0, co->buffer, 0);
 					delete co->peer;
 					break;
 				case NetIoMux::EIT_SEND:
-					if (co->errorcode == 0)
+					if (!co->provisioned)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_INVALID_OP, co->sep, 0, co->buffer, 0);
+					else if (co->errorcode == 0)
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SUCCESS, co->sep, 0, co->buffer, co->length);
 					else
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SEND, co->sep, 0, co->buffer, 0);
 					break;
 				case NetIoMux::EIT_SENDTO:
-					if (co->errorcode == 0)
+					if (!co->provisioned)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_INVALID_OP, co->sep, (vptr)co->peer, co->buffer, 0);
+					else if (co->errorcode == 0)
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SUCCESS, co->sep, (vptr)co->peer, co->buffer, co->length);
 					else
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SEND, co->sep, (vptr)co->peer, co->buffer, 0);
 					delete co->peer;
 					break;
 				case NetIoMux::EIT_ACCEPT:
-					if (co->errorcode == 0)
+					if (!co->provisioned)
+						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_INVALID_OP, co->sep, 0, 0, 0);
+					else if (co->errorcode == 0)
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SUCCESS, co->sep, (vptr)co->tep, 0, 0);
 					else
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_ACCEPT, co->sep, 0, 0, 0);
+					delete co->peer;
 					break;
 				case NetIoMux::EIT_CONNECT:
-					if (co->errorcode == 0)
+					if (!co->provisioned)
+						co->cb->onIoCompleted(co->iotype, (co->peer == 0) ? NetEndpoint::EE_INVALID_OP : NetEndpoint::EE_RESOLVE, co->sep, 0, 0, 0);
+					else if (co->errorcode == 0)
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_SUCCESS, co->sep, (vptr)co->peer, 0, 0);
 					else
 						co->cb->onIoCompleted(co->iotype, NetEndpoint::EE_CONNECT, co->sep, 0, 0, 0);
@@ -319,151 +354,99 @@ namespace xpf
 
 		void asyncRecv(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
-			const NetIoMux::EIoType iotype = NetIoMux::EIT_RECV;
-
-			const NetEndpoint::EStatus stat = ep->getStatus();
-			xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
-			if (NetEndpoint::ESTAT_CONNECTED != stat)
+			AsyncContext *ctx = (AsyncContext*)ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (ctx)
 			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
-				return;
-			}
+				Overlapped *o = new Overlapped(ep, NetIoMux::EIT_RECV);
+				o->buffer = buf;
+				o->length = buflen;
+				o->cb = cb;
 
-			Overlapped *o = new Overlapped(ep, iotype);
-			o->buffer = buf;
-			o->length = buflen;
-			o->cb = cb;
-			
-			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
-			ScopedThreadLock ml(ctx->lock);
-			if (!performIoLocked(ep, o))
+				ScopedThreadLock ml(ctx->lock);
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
+			}
 		}
 
 		void asyncRecvFrom(NetEndpoint *ep, c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
-			const NetIoMux::EIoType iotype = NetIoMux::EIT_RECVFROM;
-
-			const NetEndpoint::EStatus stat = ep->getStatus();
-			xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
-			if (NetEndpoint::ESTAT_CONNECTED != stat)
+			AsyncContext *ctx = (AsyncContext*)ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (ctx)
 			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
-				return;
-			}
+				Overlapped *o = new Overlapped(ep, NetIoMux::EIT_RECVFROM);
+				o->buffer = buf;
+				o->length = buflen;
+				o->cb = cb;
+				o->peer = new NetEndpoint::Peer;
 
-			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
-
-			Overlapped *o = new Overlapped(ep, iotype);
-			o->buffer = buf;
-			o->length = buflen;
-			o->cb = cb;
-			o->peer = peer;
-
-			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
-			ScopedThreadLock ml(ctx->lock);
-			if (!performIoLocked(ep, o))
+				ScopedThreadLock ml(ctx->lock);
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
+			}
 		}
 
 		void asyncSend(NetEndpoint *ep, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
-			const NetIoMux::EIoType iotype = NetIoMux::EIT_SEND;
-
-			const NetEndpoint::EStatus stat = ep->getStatus();
-			xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
-			if (NetEndpoint::ESTAT_CONNECTED != stat)
+			AsyncContext *ctx = (AsyncContext*)ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (ctx)
 			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, buf, 0);
-				return;
-			}
+				Overlapped *o = new Overlapped(ep, NetIoMux::EIT_SEND);
+				o->buffer = (c8*)buf;
+				o->length = buflen;
+				o->cb = cb;
 
-			Overlapped *o = new Overlapped(ep, iotype);
-			o->buffer = (c8*)buf;
-			o->length = buflen;
-			o->cb = cb;
-
-			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
-			ScopedThreadLock ml(ctx->lock);
-			if (!performIoLocked(ep, o))
+				ScopedThreadLock ml(ctx->lock);
 				appendAsyncOpLocked(ep, o, ASYNC_OP_WRITE);
+			}
 		}
 
 		void asyncSendTo(NetEndpoint *ep, const NetEndpoint::Peer *peer, const c8 *buf, u32 buflen, NetIoMuxCallback *cb)
 		{
-			const NetIoMux::EIoType iotype = NetIoMux::EIT_SENDTO;
-
-			const NetEndpoint::EStatus stat = ep->getStatus();
-			xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
-			if (NetEndpoint::ESTAT_CONNECTED != stat)
+			AsyncContext *ctx = (AsyncContext*)ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (ctx)
 			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, (vptr)peer, buf, 0);
-				return;
-			}
+				Overlapped *o = new Overlapped(ep, NetIoMux::EIT_SENDTO);
+				o->buffer = (c8*)buf;
+				o->length = buflen;
+				o->cb = cb;
+				o->peer = new NetEndpoint::Peer(*peer); // clone
 
-			NetEndpoint::Peer *p = new NetEndpoint::Peer(*peer); // clone
-
-			Overlapped *o = new Overlapped(ep, iotype);
-			o->buffer = (c8*)buf;
-			o->length = buflen;
-			o->cb = cb;
-			o->peer = p;
-
-			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
-			ScopedThreadLock ml(ctx->lock);
-			if (!performIoLocked(ep, o))
+				ScopedThreadLock ml(ctx->lock);
 				appendAsyncOpLocked(ep, o, ASYNC_OP_WRITE);
+			}
 		}
 
 		void asyncAccept(NetEndpoint *ep, NetIoMuxCallback *cb)
 		{
-			const NetIoMux::EIoType iotype = NetIoMux::EIT_ACCEPT;
-
-			const NetEndpoint::EStatus stat = ep->getStatus();
-			xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_LISTENING == stat));
-			if (NetEndpoint::ESTAT_LISTENING != stat)
+			AsyncContext *ctx = (AsyncContext*)ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (ctx)
 			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, 0, 0);
-				return;
-			}
+				Overlapped *o = new Overlapped(ep, NetIoMux::EIT_ACCEPT);
+				o->cb = cb;
+				o->peer = new NetEndpoint::Peer;
+				o->peer->Length = XPF_NETENDPOINT_MAXADDRLEN;
 
-			Overlapped *o = new Overlapped(ep, iotype);
-			o->cb = cb;
-
-			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
-			ScopedThreadLock ml(ctx->lock);
-			if (!performIoLocked(ep, o))
+				ScopedThreadLock ml(ctx->lock);
 				appendAsyncOpLocked(ep, o, ASYNC_OP_READ);
+			}
 		}
 
 		void asyncConnect(NetEndpoint *ep, const c8 *host, const c8 *serviceOrPort, NetIoMuxCallback *cb)
 		{
-			const NetIoMux::EIoType iotype = NetIoMux::EIT_CONNECT;
-
-			const NetEndpoint::EStatus stat = ep->getStatus();
-			xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_INIT == stat));
-			if (NetEndpoint::ESTAT_INIT != stat)
+			AsyncContext *ctx = (AsyncContext*)ep->getAsyncContext();
+			xpfAssert(ctx != 0);
+			if (ctx)
 			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_INVALID_OP, ep, 0, 0, 0);
-				return;
-			}
+				Overlapped *o = new Overlapped(ep, NetIoMux::EIT_CONNECT);
+				o->cb = cb;
+				o->buffer = (c8*) new ConnectHostInfo(host, serviceOrPort);
 
-			// Note: resolving can be blockable.
-			NetEndpoint::Peer *peer = new NetEndpoint::Peer;
-			if (!NetEndpoint::resolvePeer(ep->getProtocol(), *peer, host, serviceOrPort))
-			{
-				cb->onIoCompleted(iotype, NetEndpoint::EE_RESOLVE, ep, 0, 0, 0);
-				return;
-			}
-
-			Overlapped *o = new Overlapped(ep, iotype);
-			o->cb = cb;
-			o->peer = peer;
-
-			AsyncContext *ctx = (AsyncContext*) ep->getAsyncContext();
-			ScopedThreadLock ml(ctx->lock);
-			if (!performIoLocked(ep, o))
+				ScopedThreadLock ml(ctx->lock);
 				appendAsyncOpLocked(ep, o, ASYNC_OP_WRITE);
+			}
 		}
 
 		bool join(NetEndpoint *ep)
@@ -547,7 +530,21 @@ namespace xpf
 			switch (o->iotype)
 			{
 			case NetIoMux::EIT_RECV:
+				do
 				{
+					if (false == o->provisioned)
+					{
+						const NetEndpoint::EStatus stat = ep->getStatus();
+						xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
+						if (NetEndpoint::ESTAT_CONNECTED != stat)
+						{
+							o->errorcode = 0;
+							o->length = 0;
+							break;
+						}
+						o->provisioned = true;
+					}
+
 					ssize_t bytes = ::recv(ep->getSocket(), o->buffer, (size_t)o->length, MSG_DONTWAIT);
 					if (bytes >= 0)
 					{
@@ -564,10 +561,25 @@ namespace xpf
 					{
 						complete = false;
 					}
-				}
+				} while (0);
 				break;
+
 			case NetIoMux::EIT_RECVFROM:
+				do
 				{
+					if (false == o->provisioned)
+					{
+						const NetEndpoint::EStatus stat = ep->getStatus();
+						xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
+						if (NetEndpoint::ESTAT_CONNECTED != stat)
+						{
+							o->length = 0;
+							o->errorcode = 0;
+							break;
+						}
+						o->provisioned = true;
+					}
+
 					ssize_t bytes = ::recvfrom(ep->getSocket(), o->buffer, (size_t)o->length, MSG_DONTWAIT, (struct sockaddr*)o->peer->Data, (socklen_t*)&o->peer->Length);
 					if (bytes >= 0)
 					{
@@ -584,10 +596,26 @@ namespace xpf
 					{
 						complete = false;
 					}
-				}
+				} while (0);
 				break;
+
 			case NetIoMux::EIT_ACCEPT:
+				do
 				{
+					if (false == o->provisioned)
+					{
+						const NetEndpoint::EStatus stat = ep->getStatus();
+						xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_LISTENING == stat));
+						if (NetEndpoint::ESTAT_LISTENING != stat)
+						{
+							o->tep = 0;
+							o->length = 0;
+							o->buffer = 0;
+							break;
+						}
+						o->provisioned = true;
+					}
+
 					int peersock = ::accept(ep->getSocket(), (struct sockaddr*)o->peer->Data, (socklen_t*)&o->peer->Length);
 					if (peersock != -1)
 					{
@@ -610,10 +638,25 @@ namespace xpf
 						complete = false;
 						ep->setStatus(NetEndpoint::ESTAT_ACCEPTING);
 					}
-				}
+				} while (0);
 				break;
+
 			case NetIoMux::EIT_SEND:
+				do
 				{
+					if (false == o->provisioned)
+					{
+						const NetEndpoint::EStatus stat = ep->getStatus();
+						xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
+						if (NetEndpoint::ESTAT_CONNECTED != stat)
+						{
+							o->errorcode = 0;
+							o->length = 0;
+							break;
+						}
+						o->provisioned = true;
+					}
+
 					ssize_t bytes = ::send(ep->getSocket(), o->buffer, (size_t)o->length, MSG_DONTWAIT);
 					if (bytes >=0 )
 					{
@@ -630,10 +673,25 @@ namespace xpf
 					{
 						complete = false;
 					}
-				}
+				} while (0);
 				break;
+
 			case NetIoMux::EIT_SENDTO:
+				do
 				{
+					if (false == o->provisioned)
+					{
+						const NetEndpoint::EStatus stat = ep->getStatus();
+						xpfAssert(("Invalid socket status.", NetEndpoint::ESTAT_CONNECTED == stat));
+						if (NetEndpoint::ESTAT_CONNECTED != stat)
+						{
+							o->errorcode = 0;
+							o->length = 0;
+							break;
+						}
+						o->provisioned = true;
+					}
+
 					ssize_t bytes = ::sendto(ep->getSocket(), o->buffer, (size_t)o->length, MSG_DONTWAIT,
 							(const struct sockaddr*)o->peer->Data, (socklen_t)o->peer->Length);
 					if (bytes >=0 )
@@ -651,54 +709,91 @@ namespace xpf
 					{
 						complete = false;
 					}
-				}
+				} while (0);
 				break;
+
 			case NetIoMux::EIT_CONNECT:
-				if (o->length == 0) // not yet called connect
+				do
 				{
-					int ec = ::connect(ep->getSocket(), (const struct sockaddr*)o->peer->Data, (socklen_t)o->peer->Length);
-					if (ec == 0)
+					if (false == o->provisioned)
 					{
-						o->length = 0;
-						o->errorcode = 0;
-						ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
+						const NetEndpoint::EStatus stat = ep->getStatus();
+						xpfAssert(("Invalid socket status.", ((NetEndpoint::ESTAT_INIT == stat) && (o->buffer != 0))));
+						if ((NetEndpoint::ESTAT_INIT != stat) || (o->buffer == 0))
+						{
+							o->length = 0;
+							o->errorcode = 0;
+							o->peer = 0;
+							if (o->buffer)
+							{
+								ConnectHostInfo *chi = (ConnectHostInfo*)o->buffer;
+								delete chi;
+								o->buffer = 0;
+							}
+							break;
+						}
+
+						o->peer = new NetEndpoint::Peer;
+
+						// Note: resolving can be blockable.
+						ConnectHostInfo *chi = (ConnectHostInfo*)o->buffer;
+						bool resolved = NetEndpoint::resolvePeer(ep->getProtocol(), *o->peer, chi->host, chi->service);
+						delete chi;
+						if (!resolved)
+						{
+							o->length = 0;
+							o->errorcode = 0;
+							break;
+						}
+						o->provisioned = true;
 					}
-					else if (errno != EINPROGRESS)
+
+					if (o->length == 0) // not yet called connect
 					{
-						o->length = 0;
-						o->errorcode = errno;
-						ep->setLastPlatformErrno(errno);
-						ep->setStatus(NetEndpoint::ESTAT_INIT);
+						int ec = ::connect(ep->getSocket(), (const struct sockaddr*)o->peer->Data, (socklen_t)o->peer->Length);
+						if (ec == 0)
+						{
+							o->length = 0;
+							o->errorcode = 0;
+							ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
+						}
+						else if (errno != EINPROGRESS)
+						{
+							o->length = 0;
+							o->errorcode = errno;
+							ep->setLastPlatformErrno(errno);
+							ep->setStatus(NetEndpoint::ESTAT_INIT);
+						}
+						else
+						{
+							xpfAssert(o->length == 0);
+							ep->setStatus(NetEndpoint::ESTAT_CONNECTING);
+							o->length = 1; // mark a connect() call in progress.
+							complete = false;
+						}
 					}
-					else
+					else // a connect() was called and waiting for result.
 					{
-						xpfAssert(o->length == 0);
-						ep->setStatus(NetEndpoint::ESTAT_CONNECTING);
-						o->length = 1; // mark a connect() call in progress.
-						complete = false;
+						int val = 0;
+						socklen_t valsize = sizeof(int);
+						int ec = ::getsockopt(ep->getSocket(), SOL_SOCKET, SO_ERROR, &val, &valsize);
+						xpfAssert(ec == 0);
+						if (ec == 0 && val == 0)
+						{
+							o->errorcode = 0;
+							o->length = 0;
+							ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
+						}
+						else
+						{
+							o->errorcode = errno;
+							ep->setLastPlatformErrno(errno);
+							delete o->peer;
+							o->peer = 0;
+							ep->setStatus(NetEndpoint::ESTAT_INIT);
+						}
 					}
-				}
-				else // a connect() was called and waiting for result.
-				{
-					int val = 0;
-					socklen_t valsize = sizeof(int);
-					int ec = ::getsockopt(ep->getSocket(), SOL_SOCKET, SO_ERROR, &val, &valsize);
-					xpfAssert(ec == 0);
-					if (ec == 0 && val == 0)
-					{
-						o->errorcode = 0;
-						o->length = 0;
-						ep->setStatus(NetEndpoint::ESTAT_CONNECTED);
-					}
-					else
-					{
-						o->errorcode = errno;
-						ep->setLastPlatformErrno(errno);
-						delete o->peer;
-						o->peer = 0;
-						ep->setStatus(NetEndpoint::ESTAT_INIT);
-					}
-				}
+				} while (0);
 				break;
 
 			default:

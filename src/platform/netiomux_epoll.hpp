@@ -89,9 +89,9 @@ namespace xpf
 	{
 		std::deque<Overlapped*>  rdqueue; // queued read operations
 		std::deque<Overlapped*>  wrqueue; // queued write operations
-		bool                          ready;
-		ThreadLock                    lock;
-		NetEndpoint                  *ep;
+		bool                     ready;
+		ThreadLock               lock;
+		NetEndpoint             *ep;
 	};
 
 	class NetIoMuxImpl
