@@ -61,7 +61,7 @@ public:
 			mAborting = true;
 			// fall through
 		case Thread::TRS_FINISHED:
-			join(-1L);
+			join(-1);
 			break;
 		case Thread::TRS_JOINED:
 		default:
@@ -79,13 +79,13 @@ public:
 		mStartEvent->set();
 	}
 
-	inline bool join(u32 timeoutMs /*= -1L*/)
+	inline bool join(u32 timeoutMs /*= -1*/)
 	{
 		if (mStatus == Thread::TRS_JOINED)
 			return true;
 
 		if ((mStatus != Thread::TRS_READY) &&
-			((-1L == timeoutMs) || (mFinishEvent->wait(timeoutMs))))
+			((-1 == timeoutMs) || (mFinishEvent->wait(timeoutMs))))
 		{
 			pthread_join(mThreadHandle, NULL);
 			pthread_detach(mThreadHandle);

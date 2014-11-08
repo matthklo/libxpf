@@ -172,7 +172,7 @@ vptr XPF_API CreateCoroutine(u32 stackSize, CoroutineFunc body, vptr data)
 	slot->StackSize = (stackSize) ? stackSize : FCSTKSZ;
 	slot->StackBuffer = new char[slot->StackSize];
 
-	slot->Context.uc_stack.ss_sp = slot->StackBuffer;
+	slot->Context.uc_stack.ss_sp = (char*) slot->StackBuffer;
 	slot->Context.uc_stack.ss_size = slot->StackSize;
 	slot->Context.uc_link = 0;
 

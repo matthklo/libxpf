@@ -73,9 +73,9 @@ namespace xpf { namespace details {
 			pthread_mutex_unlock(&m_lock);
 		}
 
-		inline bool wait(u32 timeoutMs /* = -1L */)
+		inline bool wait(u32 timeoutMs /* = -1 */)
 		{
-			if (-1L == timeoutMs)
+			if (-1 == timeoutMs)
 			{
 				pthread_mutex_lock(&m_lock);
 				if (!m_set)

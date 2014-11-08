@@ -35,6 +35,9 @@ ELSE()
   IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL x86_64)
     SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_sysv_elf_gas.S
                   ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_sysv_elf_gas.S)
+  ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL amd64)
+    SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_x86_64_sysv_elf_gas.S
+                  ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_x86_64_sysv_elf_gas.S)
   ELSEIF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL mips)
     SET(ASM_FILES ${CMAKE_SOURCE_DIR}/external/boost/context/asm/jump_mips32_o32_elf_gas.S
                   ${CMAKE_SOURCE_DIR}/external/boost/context/asm/make_mips32_o32_elf_gas.S)
